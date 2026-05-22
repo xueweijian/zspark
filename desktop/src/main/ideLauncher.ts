@@ -31,15 +31,21 @@ export async function openInIDE(ide: IDEInfo, projectPath: string): Promise<void
       // 注意：shell: false 可以避免很多转义问题，spawn 会自动处理带空格的参数
       const child = spawn(command, args, options);
 
+      let hasError = false;
       child.on('error', (err) => {
+        hasError = true;
         reject(new Error(`Failed to launch ${ide.name}: ${err.message}`));
       });
 
       // 调用 unref 允许父进程独立退出
       child.unref();
 
-      // 启动成功立即 resolve
-      resolve();
+      // 使用 setImmediate 延迟 resolve，给 error 事件触发并 reject 的机会
+      setImmediate(() => {
+        if (!hasError) {
+          resolve();
+        }
+      });
     } catch (error) {
       reject(error);
     }

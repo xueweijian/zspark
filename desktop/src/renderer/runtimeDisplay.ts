@@ -1,4 +1,4 @@
-﻿import i18n from './i18n'
+import i18n from './i18n'
 
 export function shortPath(path?: string, maxLength = 42): string {
   if (!path) return '…'
@@ -6,7 +6,7 @@ export function shortPath(path?: string, maxLength = 42): string {
   const parts = path.split(/[\\/]/).filter(Boolean)
   if (parts.length <= 2) return `…${path.slice(-(maxLength - 1))}`
   const tail = parts.slice(-2).join('/')
-  return tail.length + 2 <= maxLength ? `…${tail}` : `…${path.slice(-(maxLength - 1))}`
+  return tail.length + 2 <= maxLength ? `…/${tail}` : `…${path.slice(-(maxLength - 1))}`
 }
 
 export function formatApprovalPolicy(policy: unknown): string {

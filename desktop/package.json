@@ -9,7 +9,8 @@
     "dev": "electron-vite dev",
     "build": "node scripts/build-gmail-mcp.mjs && electron-vite build",
     "test": "vitest run",
-    "build:win": "node scripts/build-win.mjs",
+    "extract-icons": "powershell -ExecutionPolicy Bypass -File scripts/extract_icons.ps1",
+    "build:win": "pnpm run extract-icons && node scripts/build-win.mjs",
     "build:mac": "node scripts/build-gmail-mcp.mjs && electron-vite build && electron-builder --mac dmg",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },

@@ -28,6 +28,7 @@ import {
 } from './artifacts'
 import { formatApprovalPolicy, formatSandboxPolicy, shortPath } from './runtimeDisplay'
 import { shouldSuppressServerWarning } from './serverWarnings'
+import { OpenInIDEButton } from './OpenInIDEButton'
 import {
   commandFailureNotice,
   detectMaskedCommandFailure,
@@ -3648,6 +3649,7 @@ function DesktopApp() {
           <div className="right">
             {streaming && <button className="header-btn danger" onClick={stopTurn}><IconClose /> Stop</button>}
             {activeSharedWorkspace && <button className="header-btn" onClick={() => openPanel('files')} disabled={!activeSharedSession}><IconFile /> Files</button>}
+            <OpenInIDEButton projectPath={runtimeCwd || ''} />
             <button className="header-btn" onClick={() => setShowSettings(true)}><IconSettings /> Provider</button>
             <span className={`status-dot ${statusClass}`}>{statusText}</span>
           </div>

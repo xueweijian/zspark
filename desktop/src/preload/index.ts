@@ -35,6 +35,8 @@ const api = {
   switchWorkspace: (path: string) => ipcRenderer.invoke('workspace:switch', path),
   getRecentWorkspaces: () => ipcRenderer.invoke('workspace:recent'),
   detectTechStack: (path: string) => ipcRenderer.invoke('workspace:detectTechStack', path),
+  detectIdes: (forceRefresh?: boolean) => ipcRenderer.invoke('ides:detect', forceRefresh),
+  openInIde: (ide: any, projectPath: string) => ipcRenderer.invoke('ides:open', ide, projectPath),
   onEnterpriseDeviceCode: (cb: (payload: { userCode?: string; verificationUri?: string; message?: string; expiresOn?: number | null }) => void) => {
     const listener = (_e: IpcRendererEvent, payload: { userCode?: string; verificationUri?: string; message?: string; expiresOn?: number | null }) => cb(payload)
     ipcRenderer.on('enterprise:deviceCode', listener)

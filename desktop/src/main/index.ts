@@ -33,6 +33,8 @@ import {
   resolveAllowedLocalPath as resolveAllowedLocalPathRaw
 } from './pathSafety'
 import { ensureWorkspaceRoot, resolveWorkspaceRoot, validateWorkspaceRoot, detectTechStack } from './workspaceRoot'
+import { detectInstalledIDEs } from './ideDetector'
+import { openInIDE } from './ideLauncher'
 
 let mainWindow: BrowserWindow | null = null
 let codex: ChildProcessWithoutNullStreams | null = null
@@ -1234,6 +1236,14 @@ ipcMain.handle('workspace:recent', () => {
 
 ipcMain.handle('workspace:detectTechStack', (_e, path: string) => {
   return detectTechStack(path)
+})
+
+ipcMain.handle('ides:detect', async (_event, forceRefresh: boolean) => {
+  return await detectInstalledIDEs(forceRefresh)
+})
+
+ipcMain.handle('ides:open', async (_event, ide, projectPath) => {
+  return await openInIDE(ide, projectPath)
 })
 
 app.whenReady().then(async () => {

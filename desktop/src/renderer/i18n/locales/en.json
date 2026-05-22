@@ -1,0 +1,263 @@
+{
+  "brand": {
+    "subtitle": "Agent workspace"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "close": "Close",
+    "delete": "Delete",
+    "edit": "Edit",
+    "save": "Save",
+    "done": "Done",
+    "open": "Open",
+    "name": "Name",
+    "search": "Search"
+  },
+  "nav": {
+    "newChat": "New chat",
+    "search": "Search",
+    "skills": "Skills",
+    "plugins": "Plugins",
+    "automations": "Automations",
+    "localWorkspace": "Local workspace",
+    "sharedWorkspace": "Shared workspace",
+    "workspace": "Workspace",
+    "sharedArtifacts": "Shared artifacts",
+    "workspaceFiles": "Workspace files",
+    "files": "Files",
+    "sharedArtifact": "Shared workspace artifact"
+  },
+  "sidebar": {
+    "recent": "Recent",
+    "sharedSessions": "Shared sessions",
+    "deleteChat": "Delete chat",
+    "noSharedYet": "No shared sessions yet",
+    "noChatsYet": "No chats yet",
+    "noSharedArtifacts": "No shared artifacts yet.",
+    "noFiles": "No attached or changed files yet.",
+    "noSharedSessionsShort": "No shared sessions.",
+    "noHistory": "No history."
+  },
+  "workspace": {
+    "local": "Local workspaces",
+    "shared": "Shared workspaces",
+    "add": "Add workspace",
+    "selectDirectory": "Select directory...",
+    "signIn": "Sign in with Entra",
+    "connecting": "Connecting...",
+    "create": "Create shared workspace",
+    "creating": "Creating...",
+    "enterpriseConnected": "Enterprise account connected",
+    "signInHint": "Sign in to see server-side workspaces allowed by ACL.",
+    "current": "Current workspace",
+    "recentUsed": "Recently used",
+    "openDirectory": "Open directory",
+    "switched": "Switched to {{path}}"
+  },
+  "mcp": {
+    "emptyHint": "No MCP servers configured yet. Add one to expose extra tools to the assistant.",
+    "unnamed": "(unnamed)",
+    "done": "Done",
+    "edit": "Edit",
+    "delete": "Delete",
+    "name": "Name",
+    "command": "Command",
+    "args": "Args (one per line)",
+    "env": "Env (KEY=VALUE per line)",
+    "namePlaceholder": "gmail",
+    "commandPlaceholder": "node",
+    "addServer": "+ Add MCP server",
+    "status": {
+      "starting": "Starting",
+      "ready": "Ready",
+      "failed": "Failed",
+      "stopped": "Stopped"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "modelProvider": "Model provider",
+    "modelProviderHint": "Standard OpenAI-compatible endpoint. Chat providers still run through zspark's local bridge.",
+    "baseUrl": "Base URL",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "sk-...",
+    "model": "Model",
+    "wireApi": "Wire API",
+    "wireApiResponses": "Responses API",
+    "wireApiChat": "Chat Completions (via local bridge)",
+    "mcpServers": "MCP servers",
+    "mcpHint": "Tools exposed to the assistant via Model Context Protocol. Each server launches a local process; toggle individually.",
+    "sharedWorkspaces": "Shared workspaces",
+    "entraHint": "Entra ID only gates access to the shared workspace server. It does not provide model API keys.",
+    "serverUrl": "Server URL",
+    "serverUrlPlaceholder": "https://zspark.your-corp.cn",
+    "tenantId": "Tenant ID",
+    "clientId": "Client ID",
+    "apiScope": "API Scope",
+    "authority": "Authority",
+    "cancel": "Cancel",
+    "saving": "Saving…",
+    "saveRestart": "Save & restart",
+    "saveError": "Settings could not be saved",
+    "language": "Language"
+  },
+  "search": {
+    "title": "Search threads",
+    "sharedTitle": "Search shared sessions",
+    "placeholder": "Filter by preview…",
+    "emptyShared": "No shared sessions yet. Start a new chat in this workspace.",
+    "empty": "No threads yet. Start a new chat to get going."
+  },
+  "skills": {
+    "title": "Skills",
+    "searchPlaceholder": "Search skills…",
+    "usableNow": "{{count}} usable now",
+    "summaryDetected": "{{count}} detected locally. Only skills returned by app-server can be used in <code>turn/start</code>.",
+    "officeWarning": "{{count}} office skill(s) found in plugin cache but not visible to this runtime.",
+    "noDescription": "No description.",
+    "toolDeps": "{{count}} tool deps",
+    "noToolDeps": "No tool deps listed",
+    "open": "Open",
+    "notVisible": "Not visible",
+    "install": "Install",
+    "uninstall": "Uninstall",
+    "detectedOnDisk": "Detected on disk",
+    "notInTui": "Not available in TUI",
+    "detected": "Detected",
+    "disabled": "Disabled",
+    "ready": "Ready"
+  },
+  "plugins": {
+    "title": "Plugins",
+    "searchPlaceholder": "Search plugins…",
+    "installed": "Installed",
+    "browse": "Browse",
+    "install": "Install",
+    "uninstall": "Uninstall",
+    "enabled": "Enabled",
+    "disabled": "Disabled"
+  },
+  "approval": {
+    "allow": "Allow",
+    "deny": "Deny",
+    "alwaysAllow": "Always allow",
+    "editCommand": "Edit command",
+    "statusNeedsApproval": "Needs approval",
+    "statusSending": "Sending decision",
+    "statusApproved": "Approved",
+    "statusApprovedAll": "Approved all",
+    "statusDenied": "Denied",
+    "statusResolved": "No longer needed",
+    "toplineRequired": "Approval required",
+    "toplineGranted": "Approval granted",
+    "toplineDenied": "Approval denied"
+  },
+  "activity": {
+    "running": "Running",
+    "completed": "Completed",
+    "failed": "Failed",
+    "pending": "Pending",
+    "interrupted": "Interrupted",
+    "toolCall": "Tool call",
+    "fileChange": "File change",
+    "thought": "Thought",
+    "memoryCited": "Referenced {{count}} memor{{count, plural, one{y} other{ies}}}",
+    "memoryFromThreads": "Used memory from {{count}} thread{{count, plural, one{} other{s}}}",
+    "memoryReferenced": "Referenced memory",
+    "filesChanged": "{{count}} file{{count, plural, one{} other{s}}} changed",
+    "compactedContext": "Compacted context",
+    "compactedDetail": "Earlier conversation context was summarized for future turns.",
+    "outputTruncated": "Output truncated to last {{limit}} characters."
+  },
+  "sandbox": {
+    "disabled": "Disabled",
+    "dangerFullAccess": "Danger full access",
+    "readOnly": "Read only",
+    "workspaceWrite": "Workspace write",
+    "externalSandbox": "External sandbox",
+    "unrestrictedFiles": "Unrestricted files",
+    "managedFiles": "Managed files",
+    "withNetwork": " + network",
+    "noNetwork": " · no network"
+  },
+  "policy": {
+    "granular": "Granular"
+  },
+  "scope": {
+    "project": "Project",
+    "user": "User",
+    "system": "System",
+    "admin": "Admin",
+    "skill": "Skill"
+  },
+  "skillSource": {
+    "project": "Project",
+    "pluginCache": "Plugin cache",
+    "system": "System",
+    "user": "User",
+    "local": "Local"
+  },
+  "category": {
+    "work": "Work",
+    "office": "Office",
+    "research": "Research",
+    "creative": "Creative",
+    "automation": "Automation",
+    "developer": "Developer",
+    "all": "All"
+  },
+  "command": {
+    "permissionBlocked": "Permission blocked",
+    "permissionDetail": "The command output contains a filesystem permission denial.",
+    "failureNotice": "{{title}}.\n\nThe requested action did not complete. The command output shows a filesystem permission block, so success was not confirmed."
+  },
+  "fileChange": {
+    "moved": "Moved from {{path}}"
+  },
+  "error": {
+    "bridgeUnavailable": "Desktop bridge unavailable",
+    "bridgeHint": "zspark must run inside the Electron desktop shell. Reload the window if this appeared after a hot update."
+  },
+  "dialog": {
+    "attachFiles": "Attach files",
+    "supportedFiles": "Supported files",
+    "allFiles": "All files"
+  },
+  "main": {
+    "missingFilePath": "Missing file path",
+    "missingSkillPath": "Missing skill path",
+    "fileNotExist": "File does not exist",
+    "fileUnavailable": "File is unavailable or outside the allowed zspark directories",
+    "settingsReadError": "Settings could not be read. {{error}}",
+    "encryptionUnavailable": "System keychain encryption is unavailable. Provider API keys, Entra tokens, and sensitive MCP env values saved on this machine will be stored in the app settings file.",
+    "apiKeyDecryptFailed": "An encrypted provider API key exists but cannot be decrypted on this machine. Re-enter the key before saving provider settings.",
+    "entraTokenDecryptFailed": "The saved Entra token cannot be decrypted on this machine. Sign in again before using shared workspaces.",
+    "mcpSecretsDecryptFailed": "Some MCP server secrets could not be decrypted and were cleared. Re-enter these values before using the affected MCP servers: {{names}}",
+    "mcpEnvDecryptFailed": "Encrypted MCP server env values cannot be decrypted on this machine. Re-enter those values before using the affected MCP servers.",
+    "duplicateMcpWarning": "Duplicate enabled MCP server names are configured; only the first enabled server for each name will be launched: {{names}}",
+    "httpWarning": "Shared workspace server is using plain HTTP. This is acceptable for a controlled demo or private tunnel, but use HTTPS before customer or production use.",
+    "entraIncomplete": "Shared workspace Entra configuration is incomplete. Open Settings and fill Server URL, Tenant ID, Client ID, API Scope, and Authority.",
+    "entraNoToken": "Entra login did not return an access token.",
+    "entraPublicClientRejected": "Entra rejected zspark as a public desktop client. In Azure Portal, open zspark-desktop -> Authentication -> Advanced settings -> Allow public client flows -> Yes, then try signing in again."
+  },
+  "thread": {
+    "newSharedChat": "New shared chat"
+  },
+  "composer": {
+    "busy": "zspark is working…",
+    "placeholder": "Ask zspark anything…",
+    "connecting": "Connecting…"
+  },
+  "emptyState": {
+    "heading": "What should we build?",
+    "subtitle": "Draft, review, automate. zspark works as your daily co-worker.",
+    "starter1Title": "Draft a status update",
+    "starter1Desc": "Summarize this week, write a Teams message.",
+    "starter2Title": "Review a document",
+    "starter2Desc": "Open a file and surface the key risks.",
+    "starter3Title": "Spin up a deck outline",
+    "starter3Desc": "Five-slide outline for an exec readout.",
+    "starter4Title": "Automate a workflow",
+    "starter4Desc": "Schedule a recurring task from natural language."
+  }
+}

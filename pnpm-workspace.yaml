@@ -1,0 +1,21 @@
+packages:
+  - codex-cli
+  - codex-rs/responses-api-proxy/npm
+  - sdk/typescript
+  - desktop
+  - server
+
+ignoredBuiltDependencies: []
+
+minimumReleaseAge: 10080
+minimumReleaseAgeExclude: []
+
+blockExoticSubdeps: true
+strictDepBuilds: false
+trustPolicy: no-downgrade
+trustPolicyIgnoreAfter: 10080
+trustPolicyExclude: []
+allowBuilds:
+  electron: '*'
+  esbuild: '*'
+  leveldown: '*'

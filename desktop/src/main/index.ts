@@ -84,6 +84,7 @@ interface AppSettings {
   workspaceTechStack?: Record<string, string>
   workspaceLastUsed?: Record<string, number>
   collapsedSections?: CollapsedSections
+  permissionLevel?: 'default' | 'auto' | 'full'
 }
 
 let bridgePort: number | null = null
@@ -395,7 +396,13 @@ async function enterpriseFetchResponse(path: string, init: RequestInit = {}) {
 
 function resolveAllowedLocalPath(filePath: string) {
   const settings = loadSettings()
-  return resolveAllowedLocalPathRaw(WORKSPACE_ROOT, filePath, settings.recentWorkspaces || [])
+  const disablePathSafety = settings.permissionLevel === 'full'
+  return resolveAllowedLocalPathRaw(
+    WORKSPACE_ROOT,
+    filePath,
+    settings.recentWorkspaces || [],
+    disablePathSafety
+  )
 }
 
 function safePathSegment(value: string) {

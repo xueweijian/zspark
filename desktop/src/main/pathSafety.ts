@@ -13,14 +13,23 @@ import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
  */
 
 export function normalizePathForComparison(p: string): string {
+  if (typeof p !== 'string') return ''
   try {
-    let resolved = resolve(p)
-    if (resolved.startsWith('\\\\?\\')) {
+    let resolved = resolve(p).replace(/\\/g, '/')
+    if (resolved.toLowerCase().startsWith('//?/unc/')) {
+      resolved = '/' + resolved.slice(7)
+    } else if (resolved.startsWith('//?/')) {
       resolved = resolved.slice(4)
     }
-    return resolved.toLowerCase().replace(/\\/g, '/')
+    return resolved.toLowerCase()
   } catch {
-    return p.toLowerCase().replace(/\\/g, '/')
+    let fallback = p.replace(/\\/g, '/')
+    if (fallback.toLowerCase().startsWith('//?/unc/')) {
+      fallback = '/' + fallback.slice(7)
+    } else if (fallback.startsWith('//?/')) {
+      fallback = fallback.slice(4)
+    }
+    return fallback.toLowerCase()
   }
 }
 
@@ -76,13 +85,20 @@ function realpathOfDeepestExistingAncestor(path: string): string {
 export function resolveAllowedLocalPath(
   workspaceRoot: string,
   filePath: string,
-  recentWorkspaces?: string[]
+  recentWorkspaces?: string[],
+  disablePathSafety?: boolean
 ): string {
   const normalized = isAbsolute(filePath) ? resolve(filePath) : resolve(workspaceRoot, filePath)
-  const roots = allowedLocalPathRoots(workspaceRoot, recentWorkspaces).map(realpathIfAvailable)
   const realPath = realpathOfDeepestExistingAncestor(normalized)
+  
+  if (disablePathSafety === true) {
+    return realPath
+  }
+  
+  const roots = allowedLocalPathRoots(workspaceRoot, recentWorkspaces).map(realpathIfAvailable)
   if (!roots.some((root) => isInsidePath(root, realPath))) {
-    throw new Error('Path resolves outside the allowed zspark workspace/download directories')
+    console.error(`Path safety violation: candidate "${realPath}" is not inside allowed roots:`, roots)
+    throw new Error(`Path resolves outside the allowed zspark workspace: candidate="${realPath}", allowedRoots=[${roots.join(', ')}]`)
   }
   return realPath
 }

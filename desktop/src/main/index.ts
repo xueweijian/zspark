@@ -394,7 +394,8 @@ async function enterpriseFetchResponse(path: string, init: RequestInit = {}) {
 }
 
 function resolveAllowedLocalPath(filePath: string) {
-  return resolveAllowedLocalPathRaw(WORKSPACE_ROOT, filePath)
+  const settings = loadSettings()
+  return resolveAllowedLocalPathRaw(WORKSPACE_ROOT, filePath, settings.recentWorkspaces || [])
 }
 
 function safePathSegment(value: string) {

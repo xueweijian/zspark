@@ -12,13 +12,30 @@ import { dirname, extname, isAbsolute, relative, resolve, sep } from 'node:path'
  * launches and a scheme allowlist for external URL handoff.
  */
 
-export function isInsidePath(root: string, candidate: string): boolean {
-  const rel = relative(resolve(root), resolve(candidate))
-  return rel === '' || (!!rel && !rel.startsWith('..') && !isAbsolute(rel))
+export function normalizePathForComparison(p: string): string {
+  try {
+    let resolved = resolve(p)
+    if (resolved.startsWith('\\\\?\\')) {
+      resolved = resolved.slice(4)
+    }
+    return resolved.toLowerCase().replace(/\\/g, '/')
+  } catch {
+    return p.toLowerCase().replace(/\\/g, '/')
+  }
 }
 
-export function allowedLocalPathRoots(workspaceRoot: string): string[] {
-  return [workspaceRoot, app.getPath('downloads')]
+export function isInsidePath(root: string, candidate: string): boolean {
+  const rootNorm = normalizePathForComparison(root)
+  const candidateNorm = normalizePathForComparison(candidate)
+  return candidateNorm === rootNorm || candidateNorm.startsWith(rootNorm.endsWith('/') ? rootNorm : rootNorm + '/')
+}
+
+export function allowedLocalPathRoots(workspaceRoot: string, recentWorkspaces: string[] = []): string[] {
+  const roots = [workspaceRoot, app.getPath('downloads'), app.getPath('temp')]
+  if (Array.isArray(recentWorkspaces)) {
+    roots.push(...recentWorkspaces)
+  }
+  return roots
 }
 
 function realpathIfAvailable(path: string): string {
@@ -56,9 +73,13 @@ function realpathOfDeepestExistingAncestor(path: string): string {
   }
 }
 
-export function resolveAllowedLocalPath(workspaceRoot: string, filePath: string): string {
+export function resolveAllowedLocalPath(
+  workspaceRoot: string,
+  filePath: string,
+  recentWorkspaces?: string[]
+): string {
   const normalized = isAbsolute(filePath) ? resolve(filePath) : resolve(workspaceRoot, filePath)
-  const roots = allowedLocalPathRoots(workspaceRoot).map(realpathIfAvailable)
+  const roots = allowedLocalPathRoots(workspaceRoot, recentWorkspaces).map(realpathIfAvailable)
   const realPath = realpathOfDeepestExistingAncestor(normalized)
   if (!roots.some((root) => isInsidePath(root, realPath))) {
     throw new Error('Path resolves outside the allowed zspark workspace/download directories')

@@ -3,7 +3,9 @@ import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
 const api = {
   send: (line: string) => ipcRenderer.invoke('codex:send', line),
   restart: () => ipcRenderer.invoke('codex:restart'),
+  getSlashCommands: () => ipcRenderer.invoke('slashCommands:get'),
   pickAttachments: () => ipcRenderer.invoke('attachments:pick'),
+  saveBase64Attachment: (base64: string, name: string, mime: string) => ipcRenderer.invoke('attachments:saveBase64', { base64, name, mime }),
   getRuntimeInfo: () => ipcRenderer.invoke('runtime:get'),
   discoverLocalSkills: () => ipcRenderer.invoke('skills:localAvailability'),
   openSkillPath: (path: string) => ipcRenderer.invoke('skill:open', path),

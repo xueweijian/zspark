@@ -180,6 +180,16 @@
     "withNetwork": " + network",
     "noNetwork": " · no network"
   },
+  "permission": {
+    "default": "Default Permissions",
+    "defaultDesc": "Safe sandbox, manual approval for sensitive operations",
+    "auto": "Auto Approve",
+    "autoDesc": "Sandbox environment, auto-approve all operations",
+    "full": "Full Access",
+    "fullDesc": "Disable sandbox, silent read/write for any path/command",
+    "plan": "Plan Mode",
+    "planDesc": "Architecture and reasoning, native read-only constraints"
+  },
   "policy": {
     "granular": "Granular"
   },

@@ -155,3 +155,26 @@ export const IconGlobe = () => (
     <path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20" />
   </Wrap>
 )
+
+export const IconStop = () => (
+  <Wrap>
+    <rect x="6" y="6" width="12" height="12" rx="1.5" fill="currentColor" />
+  </Wrap>
+)
+
+export const IconCheck = () => (
+  <Wrap>
+    <polyline points="20 6 9 17 4 12" />
+  </Wrap>
+)
+
+export const IconMagic = () => (
+  <Wrap>
+    <path d="M15 4V2M15 16v-2M8 9h2M20 9h-2M19.07 4.93l-1.41 1.41M16.24 16.24l-1.41-1.41M6.34 6.34l1.41 1.41M9.17 14.83l1.41-1.41" />
+    <path d="m19 19-3-3" />
+    <path d="M3 21h4L19 9l-4-4L3 17Z" />
+  </Wrap>
+)
+
+
+

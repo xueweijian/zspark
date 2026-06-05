@@ -180,6 +180,16 @@
     "withNetwork": " + 网络",
     "noNetwork": " · 无网络"
   },
+  "permission": {
+    "default": "默认权限",
+    "defaultDesc": "安全沙箱，敏感操作需手动确认",
+    "auto": "自动审查",
+    "autoDesc": "沙箱环境，自动替您审批通过",
+    "full": "完全访问权限",
+    "fullDesc": "解除沙箱，允许任意目录与命令静默读写",
+    "plan": "计划模式",
+    "planDesc": "只架构与推理，原生受限不修改文件"
+  },
   "policy": {
     "granular": "细粒度"
   },

@@ -98,7 +98,7 @@ export interface WorkspaceFile {
 
 export type Block =
   | { type: 'user'; id: string; text: string; turnId?: string; input?: TurnInputItem[] }
-  | { type: 'agent'; id: string; text: string; turnId?: string; memoryCitation?: MemoryCitation | null }
+  | { type: 'agent'; id: string; text: string; turnId?: string; memoryCitation?: MemoryCitation | null; isPlan?: boolean }
   | { type: 'files'; id: string; turnId: string; title: string; files: WorkspaceFile[]; subtitle?: string; tone?: 'normal' | 'warn' }
   | { type: 'approval'; id: string; turnId: string; request: ApprovalRequest }
   | { type: 'turn'; id: string; turnId: string; activities: Activity[]; collapsed: boolean; finalMessageId?: string; startedAt: number; endedAt?: number; status?: TurnBlockStatus }
@@ -284,6 +284,7 @@ export interface AppSettingsView {
   enterprise?: EnterpriseConfig
   mcpServers?: McpServerView[]
   warnings?: string[]
+  permissionLevel?: 'default' | 'auto' | 'full' | 'plan'
 }
 
 export interface WorkspaceRuntimeInfo {
@@ -304,6 +305,7 @@ export interface RuntimeHostInfo {
   workspaceRuntime?: WorkspaceRuntimeInfo
   recentWorkspaces?: string[]
   collapsedSections?: CollapsedSections
+  gitBranch?: string
 }
 
 export interface RuntimeInfo extends Partial<RuntimeHostInfo> {

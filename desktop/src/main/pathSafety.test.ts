@@ -16,7 +16,7 @@ vi.mock('electron', () => ({
   }
 }))
 
-import { resolveAllowedLocalPath } from './pathSafety'
+import { resolveAllowedLocalPath, normalizePathForComparison } from './pathSafety'
 
 const tempRoots: string[] = []
 
@@ -68,5 +68,25 @@ describe('resolveAllowedLocalPath', () => {
     mockElectron.downloads = tempRoot()
     const escape = join(tempRoot(), 'elsewhere', 'unborn.txt')
     expect(() => resolveAllowedLocalPath(workspace, escape)).toThrow(/resolves outside/)
+  })
+
+  test('correctly normalizes and strips Windows UNC and long path prefixes', () => {
+    expect(normalizePathForComparison('\\\\?\\C:\\foo\\bar')).toBe('c:/foo/bar')
+    expect(normalizePathForComparison('\\\\?\\unc\\server\\share\\foo')).toBe('//server/share/foo')
+    expect(normalizePathForComparison('C:\\foo\\bar')).toBe('c:/foo/bar')
+  })
+
+  test('allows files outside workspace when disablePathSafety is true', () => {
+    const workspace = tempRoot()
+    mockElectron.downloads = tempRoot()
+    const outside = join(tempRoot(), 'anywhere-outside.txt')
+    writeFileSync(outside, 'outside')
+
+    // 默认在沙箱开启时，必须抛出 resolves outside 异常
+    expect(() => resolveAllowedLocalPath(workspace, outside)).toThrow(/resolves outside/)
+    
+    // 一旦传递 disablePathSafety = true，则应当成功放行并返回真实物理路径
+    const resolved = resolveAllowedLocalPath(workspace, outside, [], true)
+    expect(resolved).toBe(realpathSync(outside))
   })
 })

@@ -3466,13 +3466,135 @@ function DesktopApp() {
     await submit(text, { inputItems: source.input?.length ? source.input : undefined })
   }
 
+  const changePermissionLevel = (level: 'default' | 'auto' | 'full' | 'plan') => {
+    setPermissionLevel(level)
+    window.zspark.saveSettings({ permissionLevel: level } as any).catch(() => {})
+  }
+
+  const executeSlashCommand = (cmd: any) => {
+    setSuggestionType('none')
+    const hasArgs = !!cmd.argumentHint
+    if (hasArgs) {
+      setInput(`/${cmd.command} `)
+      setTimeout(() => {
+        taRef.current?.focus()
+      }, 0)
+    } else {
+      setInput('')
+      if (cmd.command === 'plan') {
+        changePermissionLevel('plan')
+      } else {
+        submit(`/${cmd.command}`)
+      }
+    }
+  }
+
+  const executeSkillSuggestion = (skill: SkillMeta) => {
+    setSuggestionType('none')
+    useSkill(skill)
+    setInput('')
+    setTimeout(() => {
+      taRef.current?.focus()
+    }, 0)
+  }
+
+  const handleMagicWandClick = () => {
+    setInput('$')
+    setSuggestionType('skill')
+    setSuggestionSelectedIndex(0)
+    setTimeout(() => {
+      taRef.current?.focus()
+    }, 0)
+  }
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value
+    setInput(val)
+
+    if (val.startsWith('/')) {
+      const hasSpace = val.indexOf(' ') !== -1
+      if (!hasSpace) {
+        setSuggestionType('slash')
+        setSuggestionSelectedIndex(0)
+      } else {
+        setSuggestionType('none')
+      }
+    } else if (val.startsWith('$')) {
+      const hasSpace = val.indexOf(' ') !== -1
+      if (!hasSpace) {
+        setSuggestionType('skill')
+        setSuggestionSelectedIndex(0)
+      } else {
+        setSuggestionType('none')
+      }
+    } else {
+      setSuggestionType('none')
+    }
+  }
+
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (streaming || submitInFlight.current) {
       e.preventDefault()
       toast('warn', 'Current turn is still running. Stop it or wait before sending another message.')
       return
     }
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submit() }
+
+    if (suggestionType === 'slash') {
+      const list = filteredSlashCommands
+      if (list.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          setSuggestionSelectedIndex((prev) => (prev + 1) % list.length)
+          return
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setSuggestionSelectedIndex((prev) => (prev - 1 + list.length) % list.length)
+          return
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          executeSlashCommand(list[suggestionSelectedIndex])
+          return
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setSuggestionType('none')
+          return
+        }
+      }
+    }
+
+    if (suggestionType === 'skill') {
+      const list = filteredSkills
+      if (list.length > 0) {
+        if (e.key === 'ArrowDown') {
+          e.preventDefault()
+          setSuggestionSelectedIndex((prev) => (prev + 1) % list.length)
+          return
+        }
+        if (e.key === 'ArrowUp') {
+          e.preventDefault()
+          setSuggestionSelectedIndex((prev) => (prev - 1 + list.length) % list.length)
+          return
+        }
+        if (e.key === 'Enter') {
+          e.preventDefault()
+          executeSkillSuggestion(list[suggestionSelectedIndex])
+          return
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setSuggestionType('none')
+          return
+        }
+      }
+    }
+
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault()
+      submit()
+    }
   }
   const toggleTurn = (turnId: string) =>
     updateTurn(turnId, (t) => ({ ...t, collapsed: !t.collapsed }))
@@ -3821,31 +3943,213 @@ function DesktopApp() {
         )}
 
         <div className="chat-input-wrap">
+          {suggestionType === 'slash' && filteredSlashCommands.length > 0 && (
+            <div className="slash-commands-menu glass-morphism">
+              {filteredSlashCommands.map((cmd, idx) => (
+                <div
+                  key={cmd.command}
+                  className={`slash-command-item ${idx === suggestionSelectedIndex ? 'active' : ''}`}
+                  onClick={() => executeSlashCommand(cmd)}
+                >
+                  <span className="command-name">/{cmd.command}</span>
+                  {cmd.argumentHint && <span className="command-hint">{cmd.argumentHint}</span>}
+                  <span className="command-desc">{cmd.description}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {suggestionType === 'skill' && filteredSkills.length > 0 && (
+            <div className="skills-suggestions-menu glass-morphism">
+              {filteredSkills.map((skill, idx) => (
+                <div
+                  key={skill.path ?? skill.name}
+                  className={`skill-suggestion-item ${idx === suggestionSelectedIndex ? 'active' : ''}`}
+                  onClick={() => executeSkillSuggestion(skill)}
+                >
+                  <IconSkills />
+                  <span className="skill-name">{skill.displayName ?? skill.name}</span>
+                  <span className="skill-desc">{skill.shortDescription ?? skill.description}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className={`chat-input${composerBusy ? ' busy' : ''}`}>
-            {(attachments.length > 0 || selectedSkills.length > 0) && (
-              <div className="composer-chips">
-                {selectedSkills.map((s) => (
-                  <div key={s.path ?? s.name} className="composer-chip skill-chip" title={s.path}>
-                    <IconSkills />
-                    <span>{s.displayName ?? s.name}</span>
-                    <button onClick={() => removeSkill(s.path)} aria-label={`Remove ${s.name}`}><IconClose /></button>
-                  </div>
-                ))}
-                {attachments.map((a) => (
-                  <div key={a.id} className={`composer-chip ${a.kind === 'image' ? 'image-chip' : ''}`} title={a.path}>
-                    {a.kind === 'image' ? <IconImage /> : <IconFile />}
-                    <span>{a.name}</span>
-                    <em>{fmtBytes(a.size)}</em>
-                    <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`}><IconClose /></button>
-                  </div>
-                ))}
+            <div className="composer-top">
+              <textarea
+                ref={taRef}
+                rows={1}
+                placeholder={composerBusy ? t('composer.busy') : ready ? t('composer.placeholder') : t('composer.connecting')}
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={onKey}
+                disabled={!ready || composerBusy}
+              />
+              
+              {(attachments.length > 0 || selectedSkills.length > 0) && (
+                <div className="composer-chips">
+                  {selectedSkills.map((s) => (
+                    <div key={s.path ?? s.name} className="composer-chip skill-chip" title={s.path}>
+                      <IconSkills />
+                      <span>{s.displayName ?? s.name}</span>
+                      <button onClick={() => removeSkill(s.path)} aria-label={`Remove ${s.name}`}><IconClose /></button>
+                    </div>
+                  ))}
+                  {attachments.map((a) => (
+                    <div key={a.id} className={`composer-chip ${a.kind === 'image' ? 'image-chip' : ''}`} title={a.path}>
+                      {a.kind === 'image' ? <IconImage /> : <IconFile />}
+                      <span>{a.name}</span>
+                      <em>{fmtBytes(a.size)}</em>
+                      <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`}><IconClose /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="composer-toolbar">
+              <div className="toolbar-left">
+                <button
+                  className="attach-btn"
+                  onClick={pickAttachments}
+                  disabled={!ready || composerBusy}
+                  aria-label="Attach files"
+                  title="Attach files"
+                >
+                  <IconFile />
+                </button>
+                <button
+                  className="magic-wand-btn"
+                  onClick={handleMagicWandClick}
+                  disabled={!ready || composerBusy}
+                  aria-label="Use skills"
+                  title="唤起技能联想 ($)"
+                >
+                  <IconMagic />
+                </button>
               </div>
-            )}
-            <div className="composer-row">
-              <button className="attach-btn" onClick={pickAttachments} disabled={!ready || composerBusy} aria-label="Attach files" title="Attach files"><IconFile /></button>
-              <textarea ref={taRef} rows={1} placeholder={composerBusy ? t('composer.busy') : ready ? t('composer.placeholder') : t('composer.connecting')}
-                value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={onKey} disabled={!ready || composerBusy} />
-              <button className="send-btn" onClick={() => submit()} disabled={!ready || composerBusy || !hasComposerContent} aria-label="Send"><IconSend /></button>
+
+              <div className="toolbar-right">
+                <button
+                  className="send-btn"
+                  onClick={() => submit()}
+                  disabled={!ready || composerBusy || !hasComposerContent}
+                  aria-label="Send"
+                >
+                  <IconSend />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="chat-status-capsules">
+            <div className="capsules-left">
+              <div className="status-capsule client-capsule">
+                <IconGlobe />
+                <span>客户端</span>
+              </div>
+              <div className="status-capsule model-capsule" title={runtimeProvider ?? ''}>
+                <IconBrain />
+                <span>{runtimeProvider || '—'}</span>
+              </div>
+              <div className="status-capsule effort-capsule">
+                <IconTerminal />
+                <span>思考度: {runtime.reasoningEffort ?? '中'}</span>
+              </div>
+              
+              <div className="permission-selector-container">
+                <button
+                  className={`status-capsule permission-capsule ${permissionLevel}`}
+                  onClick={() => setShowPermissionMenu(!showPermissionMenu)}
+                  disabled={!ready || composerBusy}
+                  title="点击切换安全与审批权限"
+                >
+                  <IconShield />
+                  <span>{
+                    permissionLevel === 'plan' ? t('permission.plan') :
+                    permissionLevel === 'full' ? t('permission.full') :
+                    permissionLevel === 'auto' ? t('permission.auto') : t('permission.default')
+                  }</span>
+                  <IconChevron />
+                </button>
+                
+                {showPermissionMenu && (
+                  <div className="permission-dropdown-menu">
+                    <button
+                      className={`permission-menu-item ${permissionLevel === 'default' ? 'active' : ''}`}
+                      onClick={() => {
+                        changePermissionLevel('default')
+                        setShowPermissionMenu(false)
+                      }}
+                    >
+                      <span className="dot default"></span>
+                      <div className="menu-text">
+                        <span className="title">{t('permission.default')}</span>
+                        <span className="desc">{t('permission.defaultDesc')}</span>
+                      </div>
+                      {permissionLevel === 'default' && <IconCheck />}
+                    </button>
+                    <button
+                      className={`permission-menu-item ${permissionLevel === 'auto' ? 'active' : ''}`}
+                      onClick={() => {
+                        changePermissionLevel('auto')
+                        setShowPermissionMenu(false)
+                      }}
+                    >
+                      <span className="dot auto"></span>
+                      <div className="menu-text">
+                        <span className="title">{t('permission.auto')}</span>
+                        <span className="desc">{t('permission.autoDesc')}</span>
+                      </div>
+                      {permissionLevel === 'auto' && <IconCheck />}
+                    </button>
+                    <button
+                      className={`permission-menu-item ${permissionLevel === 'full' ? 'active' : ''}`}
+                      onClick={() => {
+                        changePermissionLevel('full')
+                        setShowPermissionMenu(false)
+                      }}
+                    >
+                      <span className="dot full"></span>
+                      <div className="menu-text">
+                        <span className="title">{t('permission.full')}</span>
+                        <span className="desc">{t('permission.fullDesc')}</span>
+                      </div>
+                      {permissionLevel === 'full' && <IconCheck />}
+                    </button>
+                    <button
+                      className={`permission-menu-item ${permissionLevel === 'plan' ? 'active' : ''}`}
+                      onClick={() => {
+                        changePermissionLevel('plan')
+                        setShowPermissionMenu(false)
+                      }}
+                    >
+                      <span className="dot plan"></span>
+                      <div className="menu-text">
+                        <span className="title">{t('permission.plan')}</span>
+                        <span className="desc">{t('permission.planDesc')}</span>
+                      </div>
+                      {permissionLevel === 'plan' && <IconCheck />}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="capsules-right">
+              {runtime.gitBranch && (
+                <div className="status-capsule git-capsule" title={`Git Branch: ${runtime.gitBranch}`}>
+                  <svg className="git-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <circle cx="18" cy="18" r="3" />
+                    <circle cx="6" cy="6" r="3" />
+                    <circle cx="6" cy="18" r="3" />
+                    <path d="M18 15V9a4 4 0 0 0-4-4H9" />
+                    <line x1="6" y1="9" x2="6" y2="15" />
+                  </svg>
+                  <span>{runtime.gitBranch}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>

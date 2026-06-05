@@ -1,14 +1,14 @@
 import { app, BrowserWindow, dialog, ipcMain, shell, safeStorage } from 'electron'
 import type { OpenDialogOptions } from 'electron'
 import { randomBytes } from 'node:crypto'
-import { spawn, ChildProcessWithoutNullStreams } from 'node:child_process'
+import { spawn, ChildProcessWithoutNullStreams, execSync } from 'node:child_process'
 import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import { copyFileSync, existsSync, mkdirSync, openSync, fsyncSync, closeSync, readFileSync, writeFileSync, createWriteStream, WriteStream, statSync, renameSync, realpathSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
 import { PublicClientApplication } from '@azure/msal-node'
 import { scanRecentArtifacts } from './artifacts'
-import { importAttachmentFiles } from './attachments'
+import { importAttachmentFiles, sanitizeAttachmentName, attachmentKindForMime } from './attachments'
 import { startBridge, setUpstream } from './bridge'
 import { discoverLocalSkills } from './localSkills'
 import {
@@ -599,12 +599,20 @@ function formatCodexLogChunk(channel: 'stdout' | 'stderr', chunk: string): strin
  */
 function buildProviderArgs(p?: ProviderConfig): { args: string[]; env: Record<string, string> } {
   const tomlString = (s: string) => `"${s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
-  const mcpToml = buildMcpServersTomlValue(sanitizeMcpServerList(loadSettings().mcpServers))
+  const settings = loadSettings()
+  const mcpToml = buildMcpServersTomlValue(sanitizeMcpServerList(settings.mcpServers))
+  
+  const backendSandboxMode = 
+    settings.permissionLevel === 'full' ? 'danger-full-access' : 
+    settings.permissionLevel === 'auto' ? 'workspace-write' : 'workspace-write';
+
   const baseArgs = [
     // Trust our own workspace so codex stops nagging about project-local
     // config every spawn. The path is whatever directory the binary
     // happens to look at; trust the parent so any subfolder counts.
     '-c', `projects.${tomlString(WORKSPACE_ROOT)}.trust_level=${tomlString('trusted')}`,
+    // 注入后端沙箱控制模式
+    '-c', `sandbox_mode=${tomlString(backendSandboxMode)}`,
     // User-configured MCP servers, plus any built-in zspark MCP servers
     // (e.g. Gmail) that the user has enabled in Settings.
     '-c', `mcp_servers=${mcpToml}`,
@@ -1049,6 +1057,171 @@ ipcMain.handle('attachments:pick', async () => {
   return importAttachmentFiles(picked.filePaths, WORKSPACE_ROOT)
 })
 
+ipcMain.handle('attachments:saveBase64', async (_e, { base64, name, mime }: { base64: string; name: string; mime: string }) => {
+  try {
+    const attachmentsDir = ATTACHMENTS_DIR
+    mkdirSync(attachmentsDir, { recursive: true })
+    writeFileSync(join(attachmentsDir, '.gitignore'), '*\n!.gitignore\n')
+
+    const buffer = Buffer.from(base64, 'base64')
+    const safeName = sanitizeAttachmentName(name)
+    const targetPath = join(attachmentsDir, `${Date.now()}-${randomBytes(4).toString('hex')}-${safeName}`)
+
+    writeFileSync(targetPath, buffer)
+
+    return {
+      attachment: {
+        name: safeName,
+        path: targetPath,
+        mime,
+        kind: attachmentKindForMime(mime),
+        size: buffer.length
+      },
+      error: null
+    }
+  } catch (err: any) {
+    return {
+      attachment: null,
+      error: err?.message ?? String(err)
+    }
+  }
+})
+
+function getGitBranch(): string {
+  try {
+    const branch = execSync('git rev-parse --abbrev-ref HEAD', {
+      cwd: WORKSPACE_ROOT,
+      stdio: ['ignore', 'pipe', 'ignore'],
+      encoding: 'utf8'
+    }).trim()
+    return branch
+  } catch {
+    return ''
+  }
+}
+
+interface SlashCommandInfo {
+  command: string
+  description: string
+  argumentHint?: string
+}
+
+function getSlashCommandRsPath(): string {
+  let path = join(WORKSPACE_ROOT, 'codex-rs', 'tui', 'src', 'slash_command.rs')
+  if (existsSync(path)) return path
+
+  path = join(__dirname, '..', '..', '..', 'codex-rs', 'tui', 'src', 'slash_command.rs')
+  if (existsSync(path)) return path
+
+  path = join(process.cwd(), 'codex-rs', 'tui', 'src', 'slash_command.rs')
+  if (existsSync(path)) return path
+
+  return ''
+}
+
+function parseSlashCommands(filePath: string): SlashCommandInfo[] {
+  try {
+    if (!filePath || !existsSync(filePath)) {
+      return []
+    }
+    const content = readFileSync(filePath, 'utf8')
+
+    const enumMatch = content.match(/pub enum SlashCommand\s*\{([\s\S]*?)\}/)
+    if (!enumMatch) {
+      return []
+    }
+    const enumContent = enumMatch[1]
+
+    const descMatch = content.match(/pub fn description\([\s\S]*?match self\s*\{([\s\S]*?)\n\s*\}/)
+    const descContent = descMatch ? descMatch[1] : ''
+
+    const inlineMatch = content.match(/pub fn supports_inline_args[\s\S]*?matches!\(\s*self,\s*([\s\S]*?)\)/)
+    const inlineContent = inlineMatch ? inlineMatch[1] : ''
+
+    const inlineVariants = new Set<string>()
+    if (inlineContent) {
+      const variantMatches = inlineContent.match(/SlashCommand::(\w+)/g)
+      if (variantMatches) {
+        for (const m of variantMatches) {
+          const v = m.replace('SlashCommand::', '').trim()
+          inlineVariants.add(v)
+        }
+      }
+    }
+
+    const descMap = new Map<string, string>()
+    if (descContent) {
+      const armRegex = /SlashCommand::([A-Za-z0-9_|:\s]+)=>\s*({[\s\S]*?}|"[^"]*")/g
+      let matchArr;
+      while ((matchArr = armRegex.exec(descContent)) !== null) {
+        const variantsPart = matchArr[1]
+        const valuePart = matchArr[2]
+
+        const variants = variantsPart.match(/[A-Za-z0-9]+/g)
+        if (!variants) continue
+
+        let descText = ''
+        if (valuePart.startsWith('{')) {
+          const strMatch = valuePart.match(/"([\s\S]*?)"/)
+          descText = strMatch ? strMatch[1] : ''
+        } else {
+          descText = valuePart.substring(1, valuePart.length - 1)
+        }
+        descText = descText.replace(/\s+/g, ' ').trim()
+
+        for (const v of variants) {
+          descMap.set(v.trim(), descText)
+        }
+      }
+    }
+
+    const cleanEnumContent = enumContent.replace(/\/\/.*/g, '').replace(/\/\*[\s\S]*?\*\//g, '')
+    const variantRegex = /(?:#\[strum\(([^)]+)\)\]\s*)?\b([A-Z][A-Za-z0-9]+)\b/g
+    const results: SlashCommandInfo[] = []
+    let vMatch;
+    while ((vMatch = variantRegex.exec(cleanEnumContent)) !== null) {
+      const attr = vMatch[1] ? vMatch[1].trim() : ''
+      const variantName = vMatch[2].trim()
+
+      let commandWord = ''
+      if (attr) {
+        const toStringMatch = attr.match(/to_string\s*=\s*"([^"]+)"/)
+        const serializeMatch = attr.match(/serialize\s*=\s*"([^"]+)"/)
+        if (toStringMatch) {
+          commandWord = toStringMatch[1]
+        } else if (serializeMatch) {
+          commandWord = serializeMatch[1]
+        }
+      }
+
+      if (!commandWord) {
+        commandWord = pascalToKebab(variantName)
+      }
+
+      const description = descMap.get(variantName) || ''
+      const hasInlineArgs = inlineVariants.has(variantName)
+
+      results.push({
+        command: commandWord,
+        description,
+        argumentHint: hasInlineArgs ? ' <参数>' : undefined
+      })
+    }
+
+    return results
+  } catch (e) {
+    console.error('Error parsing slash commands:', e)
+    return []
+  }
+}
+
+function pascalToKebab(str: string): string {
+  return str
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1-$2')
+    .replace(/([a-z\d])([A-Z])/g, '$1-$2')
+    .toLowerCase()
+}
+
 ipcMain.handle('runtime:get', () => {
   const settings = loadSettings()
   return {
@@ -1065,8 +1238,14 @@ ipcMain.handle('runtime:get', () => {
       : undefined,
     workspaceRuntime: workspaceRuntimeInfo(),
     recentWorkspaces: settings.recentWorkspaces || [],
-    collapsedSections: settings.collapsedSections || {}
+    collapsedSections: settings.collapsedSections || {},
+    gitBranch: getGitBranch()
   }
+})
+
+ipcMain.handle('slashCommands:get', () => {
+  const rsFilePath = getSlashCommandRsPath()
+  return parseSlashCommands(rsFilePath)
 })
 
 ipcMain.handle('skills:localAvailability', () => discoverLocalSkills(WORKSPACE_ROOT))

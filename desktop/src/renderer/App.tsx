@@ -230,7 +230,6 @@ const sidebarItems = [
 // is the App component itself. Pure helpers, types, and the IPC client live
 // in `appTypes.ts`, `appHelpers.ts`, `activityHelpers.ts`, and `ipc.ts`.
 const USER_APPROVAL_REVIEWER = 'user'
-const ZSPARK_APPROVAL_POLICY = 'on-request'
 const MAX_STDOUT_BUFFER_CHARS = 2_000_000
 
 function fmtRelativeTime(timestamp: number): string {
@@ -455,8 +454,9 @@ function rpcKey(id: JsonRpcId) {
   return String(id)
 }
 
-function userApprovalParams() {
-  return { approvalPolicy: ZSPARK_APPROVAL_POLICY, approvalsReviewer: USER_APPROVAL_REVIEWER }
+function userApprovalParams(permissionLevel: string) {
+  const approvalPolicy = (permissionLevel === 'auto' || permissionLevel === 'full') ? 'auto' : 'on-request'
+  return { approvalPolicy, approvalsReviewer: USER_APPROVAL_REVIEWER }
 }
 
 function isApprovalRequest(method: string) {
@@ -1108,6 +1108,7 @@ function DesktopApp() {
   const [collapsedSections, setCollapsedSections] = useState<CollapsedSections>({ localWorkspaces: false, sharedWorkspaces: true, recent: false })
   const [suggestionType, setSuggestionType] = useState<'none' | 'slash' | 'skill'>('none')
   const [suggestionSelectedIndex, setSuggestionSelectedIndex] = useState(0)
+  const [suggestionQuery, setSuggestionQuery] = useState('')
   const [dynamicSlashCommands, setDynamicSlashCommands] = useState<any[]>([])
   // Track current turn block id for incoming events
   const currentTurn = useRef<{ turnId: string; blockId: string; startedAt: number } | null>(null)
@@ -1159,28 +1160,45 @@ function DesktopApp() {
   const programmaticScroll = useRef(false)
 
   const filteredSlashCommands = useMemo(() => {
-    if (input.startsWith('/')) {
-      const query = input.slice(1).toLowerCase()
+    if (suggestionType === 'slash') {
+      const query = suggestionQuery.toLowerCase()
       return dynamicSlashCommands.filter((cmd) => {
         if (!cmd || typeof cmd.command !== 'string') return false
         return cmd.command.toLowerCase().includes(query)
       })
     }
     return []
-  }, [input, dynamicSlashCommands])
+  }, [suggestionQuery, suggestionType, dynamicSlashCommands])
 
   const filteredSkills = useMemo(() => {
-    if (input.startsWith('$')) {
-      const query = input.slice(1).toLowerCase()
-      return skills.filter((skill) => {
-        if (!skill) return false
+    if (suggestionType === 'skill') {
+      const query = suggestionQuery.toLowerCase()
+      const merged: any[] = []
+      const seenPaths = new Set<string>()
+      const seenNames = new Set<string>()
+
+      const addSkill = (skill: any) => {
+        if (!skill) return
+        const path = (skill.path || '').toLowerCase().trim()
+        const name = (skill.name || '').toLowerCase().trim()
+        if (path && seenPaths.has(path)) return
+        if (name && seenNames.has(name)) return
+        if (path) seenPaths.add(path)
+        if (name) seenNames.add(name)
+        merged.push(skill)
+      }
+
+      skills.forEach(addSkill)
+      localSkills.forEach(addSkill)
+
+      return merged.filter((skill) => {
         const name = (skill.name || '').toLowerCase()
         const displayName = (skill.displayName || '').toLowerCase()
         return name.includes(query) || displayName.includes(query)
       })
     }
     return []
-  }, [input, skills])
+  }, [suggestionQuery, suggestionType, skills, localSkills])
 
   useEffect(() => {
     let active = true
@@ -2684,7 +2702,7 @@ function DesktopApp() {
       try {
         const init = await send('initialize', { clientInfo: { name: 'zspark-desktop', version: '0.0.1' } })
         if (init.error && init.error.message !== 'Already initialized') { toast('error', init.error.message); return }
-        const t = await send('thread/start', userApprovalParams())
+        const t = await send('thread/start', userApprovalParams(permissionLevel))
         const tid = t.result?.thread?.id ?? null
         applyThreadRuntime(t.result)
         setThread(tid); setReady(true)
@@ -2825,7 +2843,7 @@ function DesktopApp() {
     resetLiveTurnState()
     setBlocks([])
     try {
-      const t = await send('thread/start', userApprovalParams())
+      const t = await send('thread/start', userApprovalParams(permissionLevel))
       if (seq !== switchThreadSeq.current) return false
       applyThreadRuntime(t.result)
       setThread(t.result?.thread?.id ?? null)
@@ -2844,7 +2862,7 @@ function DesktopApp() {
     resetLiveTurnState()
     setBlocks([])
     try {
-      const t = await send('thread/resume', { threadId: id, ...userApprovalParams() })
+      const t = await send('thread/resume', { threadId: id, ...userApprovalParams(permissionLevel) })
       if (seq !== switchThreadSeq.current) return
       if (t.error) throw new Error(t.error.message)
       applyThreadRuntime(t.result)
@@ -2892,7 +2910,7 @@ function DesktopApp() {
     setBlocks([])
     setWorkspaceFiles([])
     try {
-      const t = await send('thread/start', userApprovalParams())
+      const t = await send('thread/start', userApprovalParams(permissionLevel))
       if (seq !== switchThreadSeq.current) return null
       if (t.error) throw new Error(t.error.message)
       applyThreadRuntime(t.result)
@@ -2941,7 +2959,7 @@ function DesktopApp() {
       let replayed = false
       if (localThreadId) {
         try {
-          const t = await send('thread/resume', { threadId: localThreadId, ...userApprovalParams() })
+          const t = await send('thread/resume', { threadId: localThreadId, ...userApprovalParams(permissionLevel) })
           if (seq !== switchThreadSeq.current) return
           if (t.error) throw new Error(t.error.message)
           applyThreadRuntime(t.result)
@@ -2965,7 +2983,7 @@ function DesktopApp() {
         }
       }
       if (!replayed) {
-        const t = await send('thread/start', userApprovalParams())
+        const t = await send('thread/start', userApprovalParams(permissionLevel))
         if (seq !== switchThreadSeq.current) return
         if (t.error) throw new Error(t.error.message)
         applyThreadRuntime(t.result)
@@ -3034,7 +3052,7 @@ function DesktopApp() {
         resetLiveTurnState()
         setBlocks([])
         setThread(null)
-        const t = await send('thread/start', userApprovalParams())
+        const t = await send('thread/start', userApprovalParams(permissionLevel))
         applyThreadRuntime(t.result)
         setThread(t.result?.thread?.id ?? null)
       }
@@ -3376,7 +3394,7 @@ function DesktopApp() {
     }
     let accepted = false
     try {
-      const res = await send('turn/start', { threadId: targetThreadId, input: inputItems, ...userApprovalParams() })
+      const res = await send('turn/start', { threadId: targetThreadId, input: inputItems, ...userApprovalParams(permissionLevel) })
       if (res.error) {
         if (shouldClearComposer) {
           setInput(text)
@@ -3533,6 +3551,7 @@ function DesktopApp() {
 
   const executeSlashCommand = (cmd: any) => {
     setSuggestionType('none')
+    setSuggestionQuery('')
     const hasArgs = !!cmd.argumentHint
     if (hasArgs) {
       setInput(`/${cmd.command} `)
@@ -3551,6 +3570,7 @@ function DesktopApp() {
 
   const executeSkillSuggestion = (skill: SkillMeta) => {
     setSuggestionType('none')
+    setSuggestionQuery('')
     useSkill(skill)
     setInput('')
     setTimeout(() => {
@@ -3562,6 +3582,7 @@ function DesktopApp() {
     setInput('$')
     setSuggestionType('skill')
     setSuggestionSelectedIndex(0)
+    setSuggestionQuery('')
     setTimeout(() => {
       taRef.current?.focus()
     }, 0)
@@ -3571,24 +3592,21 @@ function DesktopApp() {
     const val = e.target.value
     setInput(val)
 
-    if (val.startsWith('/')) {
-      const hasSpace = val.indexOf(' ') !== -1
-      if (!hasSpace) {
-        setSuggestionType('slash')
-        setSuggestionSelectedIndex(0)
-      } else {
-        setSuggestionType('none')
-      }
-    } else if (val.startsWith('$')) {
-      const hasSpace = val.indexOf(' ') !== -1
-      if (!hasSpace) {
-        setSuggestionType('skill')
-        setSuggestionSelectedIndex(0)
-      } else {
-        setSuggestionType('none')
-      }
+    const selectionStart = e.target.selectionStart || 0
+    const textBeforeCursor = val.substring(0, selectionStart)
+    const match = textBeforeCursor.match(/(?:^|[\s\n])([\/\$][^\s\n]*)$/)
+
+    if (match) {
+      const word = match[1]
+      const typeChar = word[0]
+      const query = word.substring(1)
+
+      setSuggestionType(typeChar === '/' ? 'slash' : 'skill')
+      setSuggestionQuery(query)
+      setSuggestionSelectedIndex(0)
     } else {
       setSuggestionType('none')
+      setSuggestionQuery('')
     }
   }
 

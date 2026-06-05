@@ -826,8 +826,8 @@ ipcMain.handle('settings:save', (_e, partial: AppSettings) => withSettingsLock(a
     }
   }
   saveSettings(next)
-  if (partial.provider || Array.isArray((partial as any).mcpServers)) {
-    // Restart codex so the provider / MCP-server change takes effect
+  if (partial.provider || Array.isArray((partial as any).mcpServers) || partial.permissionLevel !== undefined) {
+    // Restart codex so the provider / MCP-server / permissionLevel change takes effect
     // immediately, but wait for the old child to exit so the next spawn
     // doesn't race a still-alive process for stdin / log fd.
     await restartCodex()
@@ -1119,6 +1119,89 @@ function getSlashCommandRsPath(): string {
   return ''
 }
 
+function extractBraceContent(str: string, startIndex: number): string {
+  const braceIndex = str.indexOf('{', startIndex)
+  if (braceIndex === -1) {
+    return ''
+  }
+  
+  let depth = 0
+  let inString = false
+  let inChar = false
+  let inComment: 'single' | 'multi' | false = false
+  
+  for (let i = braceIndex; i < str.length; i++) {
+    const char = str[i]
+    const prevChar = i > 0 ? str[i - 1] : ''
+    const nextChar = i + 1 < str.length ? str[i + 1] : ''
+    const isEscaped = prevChar === '\\' && (i < 2 || str[i - 2] !== '\\')
+    
+    if (inComment) {
+      if (char === '\n' && inComment === 'single') {
+        inComment = false
+      } else if (char === '/' && prevChar === '*' && inComment === 'multi') {
+        inComment = false
+      }
+      continue
+    }
+    
+    if (inChar) {
+      if (char === "'" && !isEscaped) {
+        inChar = false
+      }
+      continue
+    }
+    
+    if (inString) {
+      if (char === '"' && !isEscaped) {
+        inString = false
+      }
+      continue
+    }
+    
+    if (char === '/' && nextChar === '/') {
+      inComment = 'single'
+      i++
+      continue
+    }
+    if (char === '/' && nextChar === '*') {
+      inComment = 'multi'
+      i++
+      continue
+    }
+    
+    if (char === "'" && !isEscaped) {
+      inChar = true
+      continue
+    }
+    if (char === '"' && !isEscaped) {
+      inString = true
+      continue
+    }
+    
+    if (char === '{') {
+      depth++
+    } else if (char === '}') {
+      depth--
+      if (depth === 0) {
+        return str.substring(braceIndex + 1, i)
+      }
+    }
+  }
+  return ''
+}
+
+const FALLBACK_SLASH_COMMANDS: SlashCommandInfo[] = [
+  { command: 'model', description: 'choose what model and reasoning effort to use' },
+  { command: 'ide', description: 'include current selection, open files, and other context from your IDE', argumentHint: ' <参数>' },
+  { command: 'permissions', description: 'choose what Codex is allowed to do' },
+  { command: 'skills', description: 'use skills to improve how Codex performs specific tasks' },
+  { command: 'plan', description: 'switch to Plan mode' },
+  { command: 'goal', description: 'set or view the goal for a long-running task', argumentHint: ' <参数>' },
+  { command: 'clear', description: 'clear the terminal and start a new chat' },
+  { command: 'quit', description: 'exit Codex' }
+]
+
 function parseSlashCommands(filePath: string): SlashCommandInfo[] {
   try {
     if (!filePath || !existsSync(filePath)) {
@@ -1126,14 +1209,20 @@ function parseSlashCommands(filePath: string): SlashCommandInfo[] {
     }
     const content = readFileSync(filePath, 'utf8')
 
-    const enumMatch = content.match(/pub enum SlashCommand\s*\{([\s\S]*?)\}/)
-    if (!enumMatch) {
+    const enumIndex = content.indexOf('pub enum SlashCommand')
+    if (enumIndex === -1) {
       return []
     }
-    const enumContent = enumMatch[1]
+    const enumContent = extractBraceContent(content, enumIndex)
 
-    const descMatch = content.match(/pub fn description\([\s\S]*?match self\s*\{([\s\S]*?)\n\s*\}/)
-    const descContent = descMatch ? descMatch[1] : ''
+    const descFuncIndex = content.indexOf('fn description')
+    let descContent = ''
+    if (descFuncIndex !== -1) {
+      const matchSelfIndex = content.indexOf('match self', descFuncIndex)
+      if (matchSelfIndex !== -1) {
+        descContent = extractBraceContent(content, matchSelfIndex)
+      }
+    }
 
     const inlineMatch = content.match(/pub fn supports_inline_args[\s\S]*?matches!\(\s*self,\s*([\s\S]*?)\)/)
     const inlineContent = inlineMatch ? inlineMatch[1] : ''
@@ -1151,24 +1240,48 @@ function parseSlashCommands(filePath: string): SlashCommandInfo[] {
 
     const descMap = new Map<string, string>()
     if (descContent) {
-      const armRegex = /SlashCommand::([A-Za-z0-9_|:\s]+)=>\s*({[\s\S]*?}|"[^"]*")/g
+      const armRegex = /SlashCommand::([A-Za-z0-9_|:\s\n]+)=>\s*/g
       let matchArr;
       while ((matchArr = armRegex.exec(descContent)) !== null) {
         const variantsPart = matchArr[1]
-        const valuePart = matchArr[2]
-
+        const valueStartIndex = armRegex.lastIndex
+        
         const variants = variantsPart.match(/[A-Za-z0-9]+/g)
         if (!variants) continue
-
+        
         let descText = ''
-        if (valuePart.startsWith('{')) {
-          const strMatch = valuePart.match(/"([\s\S]*?)"/)
+        const firstChar = descContent[valueStartIndex]
+        if (firstChar === '{') {
+          const braceContent = extractBraceContent(descContent, valueStartIndex)
+          const strMatch = braceContent.match(/"([\s\S]*?)"/)
           descText = strMatch ? strMatch[1] : ''
+          const outerBraceEnd = descContent.indexOf('}', valueStartIndex)
+          if (outerBraceEnd !== -1 && outerBraceEnd >= valueStartIndex) {
+            armRegex.lastIndex = outerBraceEnd + 1
+          } else {
+            armRegex.lastIndex = descContent.indexOf('{', valueStartIndex) + 1 + braceContent.length + 1
+          }
+        } else if (firstChar === '"') {
+          let strVal = ''
+          let i = valueStartIndex + 1
+          for (; i < descContent.length; i++) {
+            if (descContent[i] === '"' && descContent[i - 1] !== '\\') {
+              break
+            }
+            strVal += descContent[i]
+          }
+          descText = strVal
+          armRegex.lastIndex = i + 1
         } else {
-          descText = valuePart.substring(1, valuePart.length - 1)
+          const commaIndex = descContent.indexOf(',', valueStartIndex)
+          if (commaIndex !== -1) {
+            descText = descContent.substring(valueStartIndex, commaIndex).trim()
+            armRegex.lastIndex = commaIndex + 1
+          }
         }
+        
         descText = descText.replace(/\s+/g, ' ').trim()
-
+        
         for (const v of variants) {
           descMap.set(v.trim(), descText)
         }
@@ -1245,7 +1358,11 @@ ipcMain.handle('runtime:get', () => {
 
 ipcMain.handle('slashCommands:get', () => {
   const rsFilePath = getSlashCommandRsPath()
-  return parseSlashCommands(rsFilePath)
+  const parsed = parseSlashCommands(rsFilePath)
+  if (parsed.length === 0) {
+    return FALLBACK_SLASH_COMMANDS
+  }
+  return parsed
 })
 
 ipcMain.handle('skills:localAvailability', () => discoverLocalSkills(WORKSPACE_ROOT))

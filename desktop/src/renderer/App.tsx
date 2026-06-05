@@ -6,7 +6,7 @@ import {
   IconNewChat, IconSearch, IconSkills, IconPlugins, IconAutomations,
   IconProject, IconSend, IconClose, IconSettings, IconChevron,
   IconBrain, IconTerminal, IconFile, IconImage, IconTool, IconGlobe,
-  IconCopy, IconRegenerate, IconTrash, IconShield
+  IconCopy, IconRegenerate, IconTrash, IconShield, IconMagic, IconCheck
 } from './icons'
 import {
   filterSkillCatalog,
@@ -211,6 +211,9 @@ declare global {
       onStderr: (cb: (s: string) => void) => void | (() => void)
       onExit: (cb: (code: number | null) => void) => void | (() => void)
       onSpawned: (cb: () => void) => void | (() => void)
+    }
+    api?: {
+      getSlashCommands?: () => Promise<any[]>
     }
   }
 }
@@ -1069,6 +1072,8 @@ export function App() {
 function DesktopApp() {
   const { t, i18n } = useTranslation()
   const [blocks, setBlocks] = useState<Block[]>([])
+  const [permissionLevel, setPermissionLevel] = useState<'default' | 'auto' | 'full' | 'plan'>('default')
+  const [showPermissionMenu, setShowPermissionMenu] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [input, setInput] = useState('')
   const [thread, setThread] = useState<string | null>(null)
@@ -1101,6 +1106,9 @@ function DesktopApp() {
   const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceInfo[]>([])
   const [workspaceBusy, setWorkspaceBusy] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<CollapsedSections>({ localWorkspaces: false, sharedWorkspaces: true, recent: false })
+  const [suggestionType, setSuggestionType] = useState<'none' | 'slash' | 'skill'>('none')
+  const [suggestionSelectedIndex, setSuggestionSelectedIndex] = useState(0)
+  const [dynamicSlashCommands, setDynamicSlashCommands] = useState<any[]>([])
   // Track current turn block id for incoming events
   const currentTurn = useRef<{ turnId: string; blockId: string; startedAt: number } | null>(null)
   // Map agent itemId (delta or completed) -> agent block id, scoped per turn
@@ -1149,6 +1157,58 @@ function DesktopApp() {
   const submitInFlight = useRef(false)
   const stickToBottom = useRef(true)
   const programmaticScroll = useRef(false)
+
+  const filteredSlashCommands = useMemo(() => {
+    if (input.startsWith('/')) {
+      const query = input.slice(1).toLowerCase()
+      return dynamicSlashCommands.filter((cmd) => {
+        if (!cmd || typeof cmd.command !== 'string') return false
+        return cmd.command.toLowerCase().includes(query)
+      })
+    }
+    return []
+  }, [input, dynamicSlashCommands])
+
+  const filteredSkills = useMemo(() => {
+    if (input.startsWith('$')) {
+      const query = input.slice(1).toLowerCase()
+      return skills.filter((skill) => {
+        if (!skill) return false
+        const name = (skill.name || '').toLowerCase()
+        const displayName = (skill.displayName || '').toLowerCase()
+        return name.includes(query) || displayName.includes(query)
+      })
+    }
+    return []
+  }, [input, skills])
+
+  useEffect(() => {
+    let active = true
+    const loadSlashCommands = async () => {
+      try {
+        if (window.api && typeof window.api.getSlashCommands === 'function') {
+          const cmds = await window.api.getSlashCommands()
+          if (active && Array.isArray(cmds)) {
+            setDynamicSlashCommands(cmds)
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load slash commands:', err)
+      }
+    }
+    loadSlashCommands()
+    return () => {
+      active = false
+    }
+  }, [])
+
+  useEffect(() => {
+    window.zspark.getSettings().then((s) => {
+      if (s.permissionLevel) {
+        setPermissionLevel(s.permissionLevel)
+      }
+    }).catch(() => {})
+  }, [])
 
   const toast = (kind: ToastKind, text: string) => {
     const id = `t-${Date.now()}-${Math.random()}`

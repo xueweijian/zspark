@@ -426,10 +426,25 @@ function MessageActions({
   disabled?: boolean
   copyDisabled?: boolean
 }) {
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    onCopy()
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
+  }
+
   return (
     <div className="message-actions" aria-label="Message actions">
-      <button className="message-action" onClick={onCopy} disabled={copyDisabled} aria-label="Copy" title="Copy">
-        <IconCopy />
+      <button
+        className={`message-action${copied ? ' copied' : ''}`}
+        onClick={handleCopy}
+        disabled={copyDisabled || copied}
+        aria-label={copied ? "Copied" : "Copy"}
+        title={copied ? "Copied" : "Copy"}
+        style={copied ? { color: '#10b981', borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' } : undefined}
+      >
+        {copied ? <IconCheck /> : <IconCopy />}
       </button>
       <button className="message-action" onClick={onRegenerate} disabled={disabled} aria-label="Regenerate" title="Regenerate">
         <IconRegenerate />
@@ -1478,7 +1493,6 @@ function DesktopApp() {
         return
       }
       if (result.status) setEnterprise(result.status)
-      toast('info', 'Signed in to shared workspaces')
       await refreshEnterprise(true)
     } catch (err: any) {
       toast('error', err?.message ?? String(err))
@@ -1499,7 +1513,6 @@ function DesktopApp() {
       activeSharedSnapshotRevision.current = null
       setActiveSharedWorkspace(null)
       setActiveSharedSession(null)
-      toast('info', 'Signed out of shared workspaces')
     } catch (err: any) {
       toast('error', err?.message ?? String(err))
     } finally {
@@ -1521,7 +1534,6 @@ function DesktopApp() {
       }
       await refreshEnterprise(true)
       if (result.workspace?.id) await selectSharedWorkspace(result.workspace.id)
-      toast('info', 'Shared workspace created')
     } catch (err: any) {
       toast('error', err?.message ?? String(err))
     } finally {
@@ -1558,7 +1570,6 @@ function DesktopApp() {
         toast('error', result.error ?? 'Could not switch workspace')
         return
       }
-      toast('info', `Switched to ${path}`)
       await refreshRuntimeHost()
     } catch (err: any) {
       toast('error', err?.message ?? String(err))
@@ -2339,7 +2350,6 @@ function DesktopApp() {
           const success = params?.success
           const error = params?.error
           if (success) {
-            toast('info', 'Windows 沙盒配置成功')
             refreshRuntimeHost()
           } else {
             toast('error', `Windows 沙盒配置失败: ${error || '未知错误'}`)
@@ -3295,9 +3305,7 @@ function DesktopApp() {
     if (!path) return
     try {
       const result = await window.zspark.downloadPath(path)
-      if (result.ok) {
-        toast('info', `Saved to ${shortPath(result.path)}`)
-      } else if (!result.canceled) {
+      if (!result.ok && !result.canceled) {
         toast('error', result.error ?? 'Could not download file')
       }
     } catch (err: any) {
@@ -3310,9 +3318,7 @@ function DesktopApp() {
       const { workspaceId, sessionId, artifactId } = file.sharedArtifact
       try {
         const result = await window.zspark.enterpriseDownloadArtifactToCache(workspaceId, sessionId, artifactId, file.name)
-        if (result.ok) {
-          toast('info', `Downloaded to ${shortPath(result.path)}`)
-        } else {
+        if (!result.ok) {
           toast('error', result.error ?? 'Could not download shared artifact')
         }
       } catch (err: any) {
@@ -3637,7 +3643,6 @@ function DesktopApp() {
     if (!text) return
     try {
       await navigator.clipboard.writeText(text)
-      toast('info', 'Copied')
     } catch (err: any) {
       const textarea = document.createElement('textarea')
       textarea.value = text
@@ -3648,8 +3653,7 @@ function DesktopApp() {
       textarea.select()
       const copied = document.execCommand('copy')
       document.body.removeChild(textarea)
-      if (copied) toast('info', 'Copied')
-      else toast('error', err?.message ?? 'Could not copy message')
+      if (!copied) toast('error', err?.message ?? 'Could not copy message')
     }
   }
 
@@ -3661,12 +3665,10 @@ function DesktopApp() {
     const source = findSourceUserBlock(block)
     const turnId = block.turnId ?? source?.turnId
     if (turnId) {
-      const didRollback = await rollbackFromTurn(turnId, 'delete')
-      if (didRollback) toast('info', 'Removed from context')
+      await rollbackFromTurn(turnId, 'delete')
       return
     }
     setBlocks((bs) => bs.filter((candidate) => candidate.id !== block.id))
-    toast('info', 'Hidden locally')
   }
 
   const regenerateMessageBlock = async (block: MessageBlock) => {

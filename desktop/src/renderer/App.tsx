@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { marked } from 'marked'
 import { Sidebar } from './Sidebar'
+import { ActivityRow } from './ActivityRow'
 import DOMPurify from 'dompurify'
 import {
   IconNewChat, IconSearch, IconSkills, IconPlugins, IconAutomations,
@@ -4040,25 +4041,8 @@ function DesktopApp() {
                         <div className="empty-act">Preparing…</div>
                       ) : visibleActivities.map((a) => {
                         const isPlaceholder = a.kind === 'reasoning' && a.id.startsWith('thinking-') && !a.detail && a.status === 'running'
-                        const detail = publicActivityDetail(a)
                         return (
-                          <div key={a.id} className={`act act-${a.kind} act-${a.status}`}>
-                            <div className="act-icon">{actIcon(a.kind)}</div>
-                            <div className="act-meat">
-                              <div className="act-title">
-                                {a.displayTitle}
-                                {a.repeatCount > 1 ? ` x${a.repeatCount}` : ''}
-                                {isPlaceholder ? ' · waiting for first token' : ''}
-                              </div>
-                              {detail && <div className="act-detail">{detail}</div>}
-                              {a.status === 'failed' && <div className="act-note">Needs attention</div>}
-                            </div>
-                            <div className="act-status">
-                              {a.status === 'running' ? '· · ·' :
-                               a.status === 'failed' ? 'failed' :
-                               a.endedAt ? fmtDuration(a.endedAt - a.startedAt) : ''}
-                            </div>
-                          </div>
+                          <ActivityRow key={a.id} activity={a} isPlaceholder={isPlaceholder} />
                         )
                       })}
                     </div>

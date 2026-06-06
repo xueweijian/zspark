@@ -194,7 +194,7 @@ input,textarea,select{font:inherit}
 .artifact-actions button.primary:hover{background:#1d4ed8;border-color:#1d4ed8}
 .artifact-actions button:disabled,.artifact-actions button.primary:disabled{cursor:not-allowed;background:#f4f4f5;border-color:#e4e4e7;color:#a1a1aa}
 
-.approval-card{align-self:flex-start;width:min(900px,100%);display:grid;grid-template-columns:38px minmax(0,1fr);gap:12px;border:1px solid #bfdbfe;border-radius:10px;background:linear-gradient(180deg,#eff6ff 0%,#fff 78%);padding:13px 14px;box-shadow:0 12px 30px rgba(37,99,235,.1)}
+.approval-card{align-self:center;margin:0 auto;width:100%;max-width:900px;box-sizing:border-box;display:grid;grid-template-columns:38px minmax(0,1fr);gap:12px;border:1px solid #bfdbfe;border-radius:10px;background:linear-gradient(180deg,#eff6ff 0%,#fff 78%);padding:13px 14px;box-shadow:0 12px 30px rgba(37,99,235,.1)}
 .approval-mark{width:38px;height:38px;border-radius:10px;background:#2563eb;color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 8px 20px rgba(37,99,235,.22)}
 .approval-content{min-width:0;display:flex;flex-direction:column;gap:5px}
 .approval-topline{display:flex;align-items:center;justify-content:space-between;gap:10px;color:#1d4ed8;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em}
@@ -1680,7 +1680,7 @@ input,textarea,select{font:inherit}
 .chat-stream {
   flex: 1;
   overflow-y: auto;
-  padding: 32px 0 20px !important;
+  padding: 32px 24px 20px !important;
   display: flex;
   flex-direction: column;
   gap: 16px !important;
@@ -1691,13 +1691,21 @@ input,textarea,select{font:inherit}
   width: 100% !important;
   max-width: 900px !important;
   margin: 0 auto !important;
-  padding: 0 24px !important;
+  padding: 0 !important;
   display: flex !important;
   flex-direction: column !important;
-  align-items: flex-start !important; /* 统一左对齐 */
-  align-self: center !important;
-  gap: 8px !important;
   box-sizing: border-box !important;
+  gap: 8px !important;
+}
+
+.message-wrap.assistant {
+  align-self: center !important;
+  align-items: flex-start !important;
+}
+
+.message-wrap.user {
+  align-self: center !important;
+  align-items: flex-end !important;
 }
 
 .bubble {
@@ -1710,6 +1718,7 @@ input,textarea,select{font:inherit}
 }
 
 .bubble.user {
+  max-width: 78% !important;
   background: var(--cm-surface-bubble-user) !important;
   color: #1e40af !important; /* 用户气泡深蓝色 */
   padding: 12px 18px !important;
@@ -1729,10 +1738,14 @@ input,textarea,select{font:inherit}
   border-left: 2px solid rgba(15, 23, 36, 0.08) !important; /* 左侧微弱线条 */
 }
 
-/* 原有 user 的 actions 需要在居左后保持靠左 */
-.message-wrap .message-actions {
-  left: 24px !important;
+.message-wrap.assistant .message-actions {
+  left: 16px !important;
   right: auto !important;
+}
+
+.message-wrap.user .message-actions {
+  right: 0 !important;
+  left: auto !important;
 }
 
 /* 3. 步骤日志（Activity Card）垂直树状微缩列表 */
@@ -1741,7 +1754,7 @@ input,textarea,select{font:inherit}
   width: 100% !important;
   max-width: 900px !important;
   margin: 8px auto !important;
-  padding: 0 24px !important;
+  padding: 0 !important;
   box-sizing: border-box !important;
   background: transparent !important;
   border: none !important;
@@ -1831,13 +1844,20 @@ input,textarea,select{font:inherit}
   color: var(--cm-text-muted) !important;
   padding: 10px 12px !important;
   max-height: 240px !important;
+  overflow-y: auto !important;
+}
+
+.act-terminal {
+  background: #1e1e1e !important;
+  color: #cccccc !important;
+  border: 1px solid #333 !important;
+  border-left: 3px solid #666 !important;
 }
 
 /* 4. 底部一体化高集成对话框与极简药丸 */
 .chat-input-wrap {
   position: relative !important;
-  --composer-padding-x: max(15%, 80px) !important;
-  padding: 16px var(--composer-padding-x) 20px !important;
+  padding: 16px 24px 20px !important;
   background: linear-gradient(to top, rgba(255,255,255,1) 80%, rgba(255,255,255,0)) !important;
   border-top: 1px solid rgba(15, 23, 36, 0.03) !important;
   box-shadow: 0 -4px 20px rgba(0,0,0,0.01) !important;
@@ -1845,6 +1865,10 @@ input,textarea,select{font:inherit}
 
 .chat-input {
   display: flex !important;
+  max-width: 900px !important;
+  width: 100% !important;
+  margin: 0 auto !important;
+  box-sizing: border-box !important;
   flex-direction: column !important;
   background: rgba(255, 255, 255, 0.7) !important;
   backdrop-filter: blur(20px) !important;
@@ -2467,4 +2491,15 @@ input,textarea,select{font:inherit}
   border-radius: 6px !important;
   background: rgba(15, 23, 36, 0.02) !important;
   border-color: rgba(15, 23, 36, 0.04) !important;
+}
+
+
+/* 兜底对齐：审批卡和生成文件卡 */
+.approval-card,
+.artifact-card {
+  align-self: center !important;
+  width: 100% !important;
+  max-width: 900px !important;
+  margin: 8px auto !important;
+  box-sizing: border-box !important;
 }

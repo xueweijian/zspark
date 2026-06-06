@@ -115,36 +115,33 @@ export function ActivityRow({ activity, isPlaceholder }: ActivityRowProps) {
       className={`act act-${activity.kind} act-${activity.status} ${collapsibleClass} ${expandedClass}`}
       onClick={handleRowClick}
     >
-      <div className="act-row-layout">
-        <div className="act-icon">{getActIcon(activity.kind)}</div>
-        <div className="act-meat">
-          <div className="act-title">
-            {activity.displayTitle}
-            {activity.repeatCount > 1 ? ` x${activity.repeatCount}` : ''}
-            {isPlaceholder ? ' · waiting for first token' : ''}
-            {isCollapsible && hasDetail && (
-              <span className={`act-collapse-icon ${expanded ? 'open' : ''}`}>
-                <IconChevron />
-              </span>
-            )}
-          </div>
-          {!isCollapsible && showDetail && defaultDetail && (
-            <div className="act-detail">{defaultDetail}</div>
+      <div className="act-icon">{getActIcon(activity.kind)}</div>
+      <div className="act-meat">
+        <div className="act-title">
+          {activity.displayTitle}
+          {activity.repeatCount > 1 ? ` x${activity.repeatCount}` : ''}
+          {isPlaceholder ? ' · waiting for first token' : ''}
+          {isCollapsible && hasDetail && (
+            <span className={`act-collapse-icon ${expanded ? 'open' : ''}`}>
+              <IconChevron />
+            </span>
           )}
-          {activity.status === 'failed' && <div className="act-note">Needs attention</div>}
         </div>
-        <div className="act-status">
-          {activity.status === 'running' ? '· · ·' :
-           activity.status === 'failed' ? 'failed' :
-           activity.endedAt ? fmtDuration(activity.endedAt - activity.startedAt) : ''}
-        </div>
+        {!isCollapsible && showDetail && defaultDetail && (
+          <div className="act-detail">{defaultDetail}</div>
+        )}
+        {isCollapsible && showDetail && rawDetail && (
+          <div className="act-expanded-body" onClick={(e) => e.stopPropagation()}>
+            {renderTerminal(rawDetail)}
+          </div>
+        )}
+        {activity.status === 'failed' && <div className="act-note">Needs attention</div>}
       </div>
-
-      {isCollapsible && showDetail && rawDetail && (
-        <div className="act-expanded-body" onClick={(e) => e.stopPropagation()}>
-          {renderTerminal(rawDetail)}
-        </div>
-      )}
+      <div className="act-status">
+        {activity.status === 'running' ? '· · ·' :
+         activity.status === 'failed' ? 'failed' :
+         activity.endedAt ? fmtDuration(activity.endedAt - activity.startedAt) : ''}
+      </div>
     </div>
   )
 }

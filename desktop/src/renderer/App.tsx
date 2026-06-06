@@ -178,6 +178,7 @@ declare global {
       restart: () => Promise<boolean>
       pickAttachments: () => Promise<PickAttachmentsResult>
       saveBase64Attachment: (base64: string, name: string, mime: string) => Promise<{ attachment?: AttachmentMeta; error?: string }>
+      readAttachmentAsDataURL: (path: string) => Promise<string | null>
       getRuntimeInfo: () => Promise<RuntimeHostInfo>
       discoverLocalSkills: () => Promise<DiscoverLocalSkillsResult>
       openSkillPath: (path: string) => Promise<{ ok: boolean; error?: string }>
@@ -1110,6 +1111,8 @@ function DesktopApp() {
   const [workspaceBusy, setWorkspaceBusy] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<CollapsedSections>({ localWorkspaces: false, sharedWorkspaces: true, recent: false })
   const [suggestionType, setSuggestionType] = useState<'none' | 'slash' | 'skill'>('none')
+  const [loadedPreviews, setLoadedPreviews] = useState<Record<string, string>>({})
+  const [zoomedImage, setZoomedImage] = useState<AttachmentMeta | null>(null)
   const [suggestionSelectedIndex, setSuggestionSelectedIndex] = useState(0)
   const [suggestionQuery, setSuggestionQuery] = useState('')
   const [dynamicSlashCommands, setDynamicSlashCommands] = useState<any[]>([])
@@ -1231,6 +1234,34 @@ function DesktopApp() {
     }).catch(() => {})
   }, [])
 
+  // 监听输入框文本变化，动态调整输入框高度以实现自动升高的效果
+  useEffect(() => {
+    const textarea = taRef.current
+    if (textarea) {
+      textarea.style.height = 'auto'
+      const scrollHeight = textarea.scrollHeight
+      textarea.style.height = `${Math.min(scrollHeight, 200)}px`
+      if (scrollHeight > 200) {
+        textarea.style.overflowY = 'auto'
+      } else {
+        textarea.style.overflowY = 'hidden'
+      }
+    }
+  }, [input])
+
+  // 辅助函数：异步读取本地文件的预览 DataURL
+  const getAttachmentPreviewUrl = (a: AttachmentMeta) => {
+    if (loadedPreviews[a.id]) return loadedPreviews[a.id]
+    if (a.path && window.zspark.readAttachmentAsDataURL) {
+      window.zspark.readAttachmentAsDataURL(a.path).then((dataUrl) => {
+        if (dataUrl) {
+          setLoadedPreviews((prev) => ({ ...prev, [a.id]: dataUrl }))
+        }
+      })
+    }
+    return ''
+  }
+
   const toast = (kind: ToastKind, text: string) => {
     const id = `t-${Date.now()}-${Math.random()}`
     // Cap on-screen toasts to keep the corner stack readable, and auto-dismiss
@@ -1245,6 +1276,7 @@ function DesktopApp() {
       taRef.current.value = ''
       taRef.current.style.height = 'auto'
     }
+    setLoadedPreviews({})
     setInput('')
   }
   const updateStreamScrollState = () => {
@@ -2837,10 +2869,6 @@ function DesktopApp() {
       if (block.type === 'agent') void reconcileAgentArtifactClaims(block)
     }
   }, [blocks, runtime.cwd, runtime.workspaceRoot])
-  useEffect(() => {
-    const ta = taRef.current; if (!ta) return
-    ta.style.height = 'auto'; ta.style.height = Math.min(ta.scrollHeight, 200) + 'px'
-  }, [input])
 
   // Refresh thread list when ready, and on each turn boundary (start/end)
   useEffect(() => {
@@ -3707,7 +3735,8 @@ function DesktopApp() {
             try {
               const res = await window.zspark.saveBase64Attachment(base64, file.name || 'pasted-image.png', file.type)
               if (res.attachment) {
-                setAttachments((prev) => [...prev, res.attachment as any])
+                const attWithPreview = { ...res.attachment, previewUrl: result }
+                setAttachments((prev) => [...prev, attWithPreview as any])
               } else if (res.error) {
                 toast('error', `Failed to save pasted image: ${res.error}`)
               }
@@ -3725,6 +3754,16 @@ function DesktopApp() {
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
     setInput(val)
+
+    // 原生调整高度，以实现敲击键盘时零延迟同步升高/缩回
+    e.target.style.height = 'auto'
+    const scrollHeight = e.target.scrollHeight
+    e.target.style.height = `${Math.min(scrollHeight, 200)}px`
+    if (scrollHeight > 200) {
+      e.target.style.overflowY = 'auto'
+    } else {
+      e.target.style.overflowY = 'hidden'
+    }
 
     const selectionStart = e.target.selectionStart || 0
     const textBeforeCursor = val.substring(0, selectionStart)
@@ -4116,6 +4155,29 @@ function DesktopApp() {
               </button>
 
               <div className="composer-input-center">
+                {attachments.filter((a) => a.kind === 'image').length > 0 && (
+                  <div className="composer-image-previews">
+                    {attachments
+                      .filter((a) => a.kind === 'image')
+                      .map((a) => (
+                        <div key={a.id} className="image-preview-card" title={a.name}>
+                          <img
+                            src={a.previewUrl || getAttachmentPreviewUrl(a)}
+                            alt={a.name}
+                            onClick={() => setZoomedImage(a)}
+                          />
+                          <button
+                            className="remove-image-btn"
+                            onClick={() => removeAttachment(a.id)}
+                            aria-label="Remove image"
+                          >
+                            <IconClose />
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+
                 <textarea
                   ref={taRef}
                   rows={1}
@@ -4127,7 +4189,7 @@ function DesktopApp() {
                   disabled={!ready || composerBusy}
                 />
                 
-                {(attachments.length > 0 || selectedSkills.length > 0) && (
+                {(attachments.filter((a) => a.kind !== 'image').length > 0 || selectedSkills.length > 0) && (
                   <div className="composer-chips">
                     {selectedSkills.map((s) => (
                       <div key={s.path ?? s.name} className="composer-chip skill-chip" title={s.path}>
@@ -4136,14 +4198,16 @@ function DesktopApp() {
                         <button onClick={() => removeSkill(s.path)} aria-label={`Remove ${s.name}`}><IconClose /></button>
                       </div>
                     ))}
-                    {attachments.map((a) => (
-                      <div key={a.id} className={`composer-chip ${a.kind === 'image' ? 'image-chip' : ''}`} title={a.path}>
-                        {a.kind === 'image' ? <IconImage /> : <IconFile />}
-                        <span>{a.name}</span>
-                        <em>{fmtBytes(a.size)}</em>
-                        <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`}><IconClose /></button>
-                      </div>
-                    ))}
+                    {attachments
+                      .filter((a) => a.kind !== 'image')
+                      .map((a) => (
+                        <div key={a.id} className="composer-chip" title={a.path}>
+                          <IconFile />
+                          <span>{a.name}</span>
+                          <em>{fmtBytes(a.size)}</em>
+                          <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`}><IconClose /></button>
+                        </div>
+                      ))}
                   </div>
                 )}
               </div>
@@ -4638,6 +4702,25 @@ function DesktopApp() {
           </div>
         ))}
       </div>
+
+      {/* 大图点击放大 Overlay */}
+      {zoomedImage && (
+        <div className="image-zoom-overlay" onClick={() => setZoomedImage(null)}>
+          <div className="image-zoom-content" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={zoomedImage.previewUrl || loadedPreviews[zoomedImage.id] || ''}
+              alt={zoomedImage.name}
+              onClick={() => setZoomedImage(null)}
+            />
+            <button className="image-zoom-close" onClick={() => setZoomedImage(null)} aria-label="Close zoom">
+              <IconClose />
+            </button>
+            <div className="image-zoom-meta">
+              <span>{zoomedImage.name} ({fmtBytes(zoomedImage.size)})</span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -200,6 +200,7 @@ export interface AttachmentMeta {
   mime: string
   kind: 'image' | 'file'
   size: number
+  previewUrl?: string
 }
 
 export interface PickAttachmentsResult {

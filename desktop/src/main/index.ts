@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, ipcMain, shell, safeStorage } from 'electro
 import type { OpenDialogOptions } from 'electron'
 import { randomBytes } from 'node:crypto'
 import { spawn, ChildProcessWithoutNullStreams, execSync } from 'node:child_process'
-import { basename, delimiter, dirname, join, resolve } from 'node:path'
+import { basename, delimiter, dirname, extname, join, resolve } from 'node:path'
 import { copyFileSync, existsSync, mkdirSync, openSync, fsyncSync, closeSync, readFileSync, writeFileSync, createWriteStream, WriteStream, statSync, renameSync, realpathSync } from 'node:fs'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
@@ -1084,6 +1084,28 @@ ipcMain.handle('attachments:saveBase64', async (_e, { base64, name, mime }: { ba
       attachment: null,
       error: err?.message ?? String(err)
     }
+  }
+})
+
+ipcMain.handle('attachments:readAsDataURL', async (_e, filePath: string) => {
+  try {
+    if (!filePath) return null
+    const safePath = resolveAllowedLocalPath(filePath)
+    if (!existsSync(safePath)) return null
+    const buffer = readFileSync(safePath)
+    
+    const ext = extname(safePath).toLowerCase()
+    let mimeType = 'image/png'
+    if (ext === '.jpg' || ext === '.jpeg') mimeType = 'image/jpeg'
+    else if (ext === '.gif') mimeType = 'image/gif'
+    else if (ext === '.webp') mimeType = 'image/webp'
+    else if (ext === '.svg') mimeType = 'image/svg+xml'
+    else if (ext === '.bmp') mimeType = 'image/x-ms-bmp'
+    
+    return `data:${mimeType};base64,${buffer.toString('base64')}`
+  } catch (err) {
+    console.error('Failed to read attachment as data URL:', err)
+    return null
   }
 })
 

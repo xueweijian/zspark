@@ -6,6 +6,7 @@ const api = {
   getSlashCommands: () => ipcRenderer.invoke('slashCommands:get'),
   pickAttachments: () => ipcRenderer.invoke('attachments:pick'),
   saveBase64Attachment: (base64: string, name: string, mime: string) => ipcRenderer.invoke('attachments:saveBase64', { base64, name, mime }),
+  readAttachmentAsDataURL: (path: string) => ipcRenderer.invoke('attachments:readAsDataURL', path),
   getRuntimeInfo: () => ipcRenderer.invoke('runtime:get'),
   discoverLocalSkills: () => ipcRenderer.invoke('skills:localAvailability'),
   openSkillPath: (path: string) => ipcRenderer.invoke('skill:open', path),

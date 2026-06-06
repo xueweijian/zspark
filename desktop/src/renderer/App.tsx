@@ -1096,6 +1096,7 @@ function DesktopApp() {
   const [selectedSkills, setSelectedSkills] = useState<SkillMeta[]>([])
   const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFile[]>([])
   const [runtime, setRuntime] = useState<RuntimeInfo>({})
+  const [tokenUsage, setTokenUsage] = useState<any>(null)
   const [enterprise, setEnterprise] = useState<EnterpriseStatus | null>(null)
   const [enterpriseDeviceCode, setEnterpriseDeviceCode] = useState<EnterpriseDeviceCode | null>(null)
   const [enterpriseBusy, setEnterpriseBusy] = useState(false)
@@ -1557,6 +1558,7 @@ function DesktopApp() {
   }
   const applyThreadRuntime = (result: any) => {
     if (!result) return
+    setTokenUsage(null)
     setRuntime((prev) => ({
       ...prev,
       cwd: result.cwd,
@@ -2294,6 +2296,13 @@ function DesktopApp() {
   useEffect(() => {
     function handle(method: string, params: any) {
       switch (method) {
+        case 'thread/tokenUsage/updated': {
+          const usage = params?.tokenUsage
+          if (usage) {
+            setTokenUsage(usage)
+          }
+          return
+        }
         case 'windowsSandbox/setupCompleted': {
           const success = params?.success
           const error = params?.error
@@ -4165,17 +4174,60 @@ function DesktopApp() {
 
           <div className="chat-status-capsules">
             <div className="capsules-left">
-              <div className="status-capsule client-capsule">
-                <IconGlobe />
-                <span>客户端</span>
-              </div>
-              <div className="status-capsule model-capsule" title={runtimeProvider ?? ''}>
-                <IconBrain />
-                <span>{runtimeProvider || '—'}</span>
-              </div>
-              <div className="status-capsule effort-capsule">
-                <IconTerminal />
-                <span>思考度: {runtime.reasoningEffort ?? '中'}</span>
+              <div className="model-status-container">
+                <div className="status-capsule model-capsule" title={runtimeProvider ?? ''}>
+                  <span>{runtimeProvider || '—'}</span>
+                  {tokenUsage && tokenUsage.modelContextWindow > 0 && (
+                    (() => {
+                      const totalTokens = tokenUsage.total.totalTokens
+                      const maxTokens = tokenUsage.modelContextWindow
+                      const percent = Math.min(100, maxTokens > 0 ? Math.round((totalTokens / maxTokens) * 100) : 0)
+                      return (
+                        <>
+                          <div className="model-context-badge">
+                            <span className="context-ring" style={{
+                              background: `conic-gradient(#4f46e5 ${percent * 3.6}deg, #e2e8f0 0deg)`
+                            }}>
+                              <span className="context-ring-inner"></span>
+                            </span>
+                            <span className="context-percent">{percent}%</span>
+                          </div>
+                          
+                          <div className="context-dropdown-menu glass-morphism">
+                            <div className="context-dropdown-header">
+                              <div className="context-title">上下文使用情况</div>
+                              <div className="context-percent-large">{percent}%</div>
+                            </div>
+                            <div className="context-dropdown-divider"></div>
+                            <div className="context-dropdown-body">
+                              <div className="context-info-row">
+                                <span className="context-info-label">已使用</span>
+                                <span className="context-info-value">{new Intl.NumberFormat().format(totalTokens)}</span>
+                              </div>
+                              <div className="context-info-row">
+                                <span className="context-info-label">剩余</span>
+                                <span className="context-info-value">{new Intl.NumberFormat().format(Math.max(0, maxTokens - totalTokens))}</span>
+                              </div>
+                              <div className="context-info-row">
+                                <span className="context-info-label">总窗口大小</span>
+                                <span className="context-info-value">{new Intl.NumberFormat().format(maxTokens)}</span>
+                              </div>
+                              <div className="context-dropdown-divider"></div>
+                              <div className="context-info-row sub-tokens">
+                                <span className="context-info-label">输入 Tokens (Input)</span>
+                                <span className="context-info-value">{new Intl.NumberFormat().format(tokenUsage.total.inputTokens)}</span>
+                              </div>
+                              <div className="context-info-row sub-tokens">
+                                <span className="context-info-label">输出 Tokens (Output)</span>
+                                <span className="context-info-value">{new Intl.NumberFormat().format(tokenUsage.total.outputTokens)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )
+                    })()
+                  )}
+                </div>
               </div>
               
               <div className="permission-selector-container">

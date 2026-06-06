@@ -176,6 +176,7 @@ declare global {
       send: (line: string) => Promise<boolean>
       restart: () => Promise<boolean>
       pickAttachments: () => Promise<PickAttachmentsResult>
+      saveBase64Attachment: (base64: string, name: string, mime: string) => Promise<{ attachment?: AttachmentMeta; error?: string }>
       getRuntimeInfo: () => Promise<RuntimeHostInfo>
       discoverLocalSkills: () => Promise<DiscoverLocalSkillsResult>
       openSkillPath: (path: string) => Promise<{ ok: boolean; error?: string }>
@@ -3679,6 +3680,38 @@ function DesktopApp() {
   }
 
 
+  const handlePaste = async (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i]
+      if (item.kind === 'file' && item.type.startsWith('image/')) {
+        const file = item.getAsFile()
+        if (file) {
+          e.preventDefault()
+          const reader = new FileReader()
+          reader.onload = async () => {
+            const result = reader.result as string
+            const base64 = result.split(',')[1]
+            try {
+              const res = await window.zspark.saveBase64Attachment(base64, file.name || 'pasted-image.png', file.type)
+              if (res.attachment) {
+                setAttachments((prev) => [...prev, res.attachment as any])
+              } else if (res.error) {
+                toast('error', `Failed to save pasted image: ${res.error}`)
+              }
+            } catch (err) {
+              console.error(err)
+              toast('error', 'Failed to save pasted image')
+            }
+          }
+          reader.readAsDataURL(file)
+        }
+      }
+    }
+  }
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
     setInput(val)
@@ -3839,18 +3872,40 @@ function DesktopApp() {
 
       <main className="chat">
         <div className="chat-header">
-          <div className="left workspace-title">
+          <div className="left chat-breadcrumb">
             <span>{activeSharedWorkspaceName ? t('nav.sharedWorkspace') : t('nav.workspace')}</span>
-            <small title={activeSharedWorkspaceName ? enterprise?.config.serverUrl : runtimeCwd}>
+            <span className="separator">&gt;</span>
+            <span className="current" title={activeSharedWorkspaceName ? enterprise?.config.serverUrl : runtimeCwd}>
               {activeSharedWorkspaceName ? [activeSharedWorkspaceName, activeSharedSessionTitle].filter(Boolean).join(' / ') : shortPath(runtimeCwd)}
-            </small>
+            </span>
           </div>
           <div className="right">
-            {streaming && <button className="header-btn danger" onClick={stopTurn}><IconClose /> Stop</button>}
-            {activeSharedWorkspace && <button className="header-btn" onClick={() => openPanel('files')} disabled={!activeSharedSession}><IconFile /> Files</button>}
+            {streaming && (
+              <button className="header-btn danger" onClick={stopTurn} title="Stop" aria-label="Stop">
+                <IconClose />
+              </button>
+            )}
+            {activeSharedWorkspace && (
+              <button
+                className="header-btn"
+                onClick={() => openPanel('files')}
+                disabled={!activeSharedSession}
+                title="Files"
+                aria-label="Files"
+              >
+                <IconFile />
+              </button>
+            )}
             <OpenInIDEButton projectPath={runtimeCwd || ''} />
-            <button className="header-btn" onClick={() => setShowSettings(true)}><IconSettings /> Provider</button>
-            <span className={`status-dot ${statusClass}`}>{statusText}</span>
+            <button
+              className="header-btn"
+              onClick={() => setShowSettings(true)}
+              title="Provider Settings"
+              aria-label="Provider Settings"
+            >
+              <IconSettings />
+            </button>
+            <span className={`status-dot ${statusClass}`} title={statusText}></span>
           </div>
         </div>
 
@@ -4053,57 +4108,70 @@ function DesktopApp() {
           )}
 
           <div className={`chat-input${composerBusy ? ' busy' : ''}`}>
-            <div className="composer-top">
-              <textarea
-                ref={taRef}
-                rows={1}
-                placeholder={composerBusy ? t('composer.busy') : ready ? t('composer.placeholder') : t('composer.connecting')}
-                value={input}
-                onChange={handleInputChange}
-                onKeyDown={onKey}
+            <div className="composer-input-row">
+              <button
+                className="attach-btn"
+                onClick={pickAttachments}
                 disabled={!ready || composerBusy}
-              />
-              
-              {(attachments.length > 0 || selectedSkills.length > 0) && (
-                <div className="composer-chips">
-                  {selectedSkills.map((s) => (
-                    <div key={s.path ?? s.name} className="composer-chip skill-chip" title={s.path}>
-                      <IconSkills />
-                      <span>{s.displayName ?? s.name}</span>
-                      <button onClick={() => removeSkill(s.path)} aria-label={`Remove ${s.name}`}><IconClose /></button>
-                    </div>
-                  ))}
-                  {attachments.map((a) => (
-                    <div key={a.id} className={`composer-chip ${a.kind === 'image' ? 'image-chip' : ''}`} title={a.path}>
-                      {a.kind === 'image' ? <IconImage /> : <IconFile />}
-                      <span>{a.name}</span>
-                      <em>{fmtBytes(a.size)}</em>
-                      <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`}><IconClose /></button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                aria-label="Attach files"
+                title="Attach files"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </button>
 
-            <div className="composer-toolbar">
-              <div className="toolbar-left">
-                <button
-                  className="attach-btn"
-                  onClick={pickAttachments}
+              <div className="composer-input-center">
+                <textarea
+                  ref={taRef}
+                  rows={1}
+                  placeholder={composerBusy ? t('composer.busy') : ready ? t('composer.placeholder') : t('composer.connecting')}
+                  value={input}
+                  onChange={handleInputChange}
+                  onKeyDown={onKey}
+                  onPaste={handlePaste}
                   disabled={!ready || composerBusy}
-                  aria-label="Attach files"
-                  title="Attach files"
-                >
-                  <IconFile />
-                </button>
-                              </div>
+                />
+                
+                {(attachments.length > 0 || selectedSkills.length > 0) && (
+                  <div className="composer-chips">
+                    {selectedSkills.map((s) => (
+                      <div key={s.path ?? s.name} className="composer-chip skill-chip" title={s.path}>
+                        <IconSkills />
+                        <span>{s.displayName ?? s.name}</span>
+                        <button onClick={() => removeSkill(s.path)} aria-label={`Remove ${s.name}`}><IconClose /></button>
+                      </div>
+                    ))}
+                    {attachments.map((a) => (
+                      <div key={a.id} className={`composer-chip ${a.kind === 'image' ? 'image-chip' : ''}`} title={a.path}>
+                        {a.kind === 'image' ? <IconImage /> : <IconFile />}
+                        <span>{a.name}</span>
+                        <em>{fmtBytes(a.size)}</em>
+                        <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`}><IconClose /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
 
-              <div className="toolbar-right">
+              <div className="composer-input-actions">
+                {streaming && (
+                  <button
+                    className="send-btn stop-mode"
+                    onClick={stopTurn}
+                    title="Stop"
+                    aria-label="Stop"
+                  >
+                    <IconClose />
+                  </button>
+                )}
                 <button
                   className="send-btn"
                   onClick={() => submit()}
                   disabled={!ready || composerBusy || !hasComposerContent}
                   aria-label="Send"
+                  title="Send"
                 >
                   <IconSend />
                 </button>

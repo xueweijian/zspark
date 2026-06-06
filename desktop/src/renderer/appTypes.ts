@@ -105,8 +105,9 @@ export type Block =
 
 export type MessageBlock = Extract<Block, { type: 'user' | 'agent' }>
 
-export type ToastKind = 'info' | 'warn' | 'error'
+export type ToastKind = 'info' | 'warn' | 'error' | 'success'
 export interface Toast { id: string; kind: ToastKind; text: string }
+
 
 export interface ProviderForm {
   baseUrl: string

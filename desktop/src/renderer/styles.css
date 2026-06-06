@@ -2811,3 +2811,113 @@ input,textarea,select{font:inherit}
   font-weight: 550;
   pointer-events: none;
 }
+
+/* ==========================================================================
+   内置浏览器 (Element Picker & WebContentsView) 样式
+   ========================================================================== */
+.aside-tabs {
+  display: flex !important;
+  border-bottom: 1px solid rgba(15, 23, 36, 0.08) !important;
+  background: #f8fafc !important;
+}
+.aside-tabs button {
+  flex: 1 !important;
+  border: none !important;
+  background: none !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: #64748b !important;
+  cursor: pointer !important;
+  border-bottom: 2px solid transparent !important;
+  transition: all 0.15s !important;
+}
+.aside-tabs button.active {
+  color: #2563eb !important;
+  border-bottom-color: #2563eb !important;
+  background: #ffffff !important;
+}
+
+.browser-surface {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.browser-address-bar {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 6px 12px !important;
+  border-bottom: 1px solid rgba(15, 23, 36, 0.08) !important;
+  background: #f8fafc !important;
+  box-sizing: border-box !important;
+}
+
+.nav-buttons {
+  display: flex !important;
+  gap: 4px !important;
+}
+
+.nav-btn, .action-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 6px !important;
+  border: 1px solid rgba(15, 23, 36, 0.06) !important;
+  background: #ffffff !important;
+  color: rgba(15, 23, 36, 0.7) !important;
+  cursor: pointer !important;
+  transition: all 0.15s !important;
+}
+
+.nav-btn:hover, .action-btn:hover {
+  background: rgba(15, 23, 36, 0.04) !important;
+  color: rgba(15, 23, 36, 0.9) !important;
+}
+
+.action-btn.active {
+  background: rgba(37, 99, 235, 0.08) !important;
+  border-color: rgba(37, 99, 235, 0.2) !important;
+  color: #2563eb !important;
+}
+
+.address-form {
+  flex: 1 !important;
+}
+
+.address-input {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 6px !important;
+  padding: 4px 10px !important;
+  font-size: 13px !important;
+  outline: none !important;
+  transition: border-color 0.15s !important;
+}
+
+.address-input:focus {
+  border-color: #2563eb !important;
+}
+
+.browser-viewport-placeholder {
+  flex: 1 !important;
+  width: 100% !important;
+  background: #ffffff !important;
+}
+
+/* 兼容刷新旋转动画 */
+.nav-btn svg.spin {
+  animation: browser-reload-spin 1s linear infinite !important;
+}
+
+@keyframes browser-reload-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+

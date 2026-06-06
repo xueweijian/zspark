@@ -4,6 +4,10 @@ import { marked } from 'marked'
 import { Sidebar } from './Sidebar'
 import { ActivityRow } from './ActivityRow'
 import DOMPurify from 'dompurify'
+
+import { BrowserSurface } from './browser/BrowserSurface'
+import { buildSelectionPrompt } from './browser/selectionComposer'
+
 import {
   IconNewChat, IconSearch, IconSkills, IconPlugins, IconAutomations,
   IconProject, IconSend, IconClose, IconSettings, IconChevron,
@@ -1131,6 +1135,42 @@ function DesktopApp() {
   const [suggestionSelectedIndex, setSuggestionSelectedIndex] = useState(0)
   const [suggestionQuery, setSuggestionQuery] = useState('')
   const [dynamicSlashCommands, setDynamicSlashCommands] = useState<any[]>([])
+
+  const [rightActiveTab, setRightActiveTab] = useState<'files' | 'browser'>('files')
+
+  const handleBrowserSelection = async (payload: any) => {
+    const { promptText, displayName } = buildSelectionPrompt(payload)
+    const screenshotBase64 = payload.screenshot?.dataUrl?.split(',')[1]
+    
+    if (screenshotBase64) {
+      try {
+        const res = await window.zspark.saveBase64Attachment(
+          screenshotBase64,
+          `selection-${displayName.replace(/[<>]/g, '')}.png`,
+          'image/png'
+        )
+        if (res.attachment) {
+          const attWithPreview = { ...res.attachment, previewUrl: payload.screenshot.dataUrl }
+          setAttachments((prev) => [...prev, attWithPreview as any])
+        } else if (res.error) {
+          toast('error', `保存标注截图失败: ${res.error}`)
+        }
+      } catch (err) {
+        console.error(err)
+        toast('error', '保存标注截图出错')
+      }
+    }
+    
+    setInput(promptText)
+    setTimeout(() => {
+      if (taRef.current) {
+        taRef.current.focus()
+        taRef.current.style.height = 'auto'
+        taRef.current.style.height = `${Math.min(taRef.current.scrollHeight, 200)}px`
+      }
+    }, 100)
+  }
+
   // Track current turn block id for incoming events
   const currentTurn = useRef<{ turnId: string; blockId: string; startedAt: number } | null>(null)
   // Map agent itemId (delta or completed) -> agent block id, scoped per turn
@@ -4557,85 +4597,101 @@ function DesktopApp() {
       </main>
 
       <aside className="right">
-        <div className="right-section">
-          <h4>Session</h4>
-          <div className="kv"><span className="k">{activeSharedWorkspace ? 'Shared' : 'Thread'}</span><span className="v">{activeSharedWorkspace ? (activeSharedSession ? activeSharedSession.slice(0, 8) : '—') : (thread ? thread.slice(0, 8) : '—')}</span></div>
-          {activeSharedWorkspace && <div className="kv"><span className="k">Runtime</span><span className="v">{thread ? thread.slice(0, 8) : '—'}</span></div>}
-          <div className="kv"><span className="k">Status</span><span className="v"><span className={`pill ${ready ? '' : 'off'}`}>{ready ? 'live' : 'offline'}</span></span></div>
-          <div className="kv"><span className="k">Skills</span><span className="v">{usableSkillCount} ready</span></div>
+        <div className="aside-tabs">
+          <button className={rightActiveTab === 'files' ? 'active' : ''} onClick={() => setRightActiveTab('files')}>文件</button>
+          <button className={rightActiveTab === 'browser' ? 'active' : ''} onClick={() => setRightActiveTab('browser')}>浏览器</button>
         </div>
-        <div className="right-section">
-          <h4>Enterprise</h4>
-          <div className="kv"><span className="k">Shared</span><span className="v">{enterprise?.signedIn ? 'connected' : 'not signed in'}</span></div>
-          <div className="kv"><span className="k">Account</span><span className="v" title={enterprise?.account?.username}>{enterprise?.account?.username ?? '—'}</span></div>
-          <div className="kv"><span className="k">Workspaces</span><span className="v">{sharedWorkspaces.length}</span></div>
-          {activeSharedWorkspace && <div className="kv"><span className="k">Sessions</span><span className="v">{sharedSessions.length}</span></div>}
-          <div className="file-actions">
-            {enterprise?.signedIn ? (
-              <>
-                <button onClick={() => void refreshEnterprise(true)} disabled={enterpriseBusy}>Refresh</button>
-                {activeSharedWorkspace && <button onClick={exitSharedWorkspace} disabled={enterpriseBusy}>Local</button>}
-                <button onClick={signOutEnterprise} disabled={enterpriseBusy}>Sign out</button>
-              </>
-            ) : (
-              <button onClick={signInEnterprise} disabled={enterpriseBusy}>{enterpriseBusy ? t('workspace.connecting') : t('workspace.signIn')}</button>
-            )}
-          </div>
-          {enterpriseDeviceCode?.userCode && (
-            <div className="device-code">
-              <strong>{enterpriseDeviceCode.userCode}</strong>
-              <span>Use this code in the browser window to finish Entra sign-in.</span>
+
+        {rightActiveTab === 'files' ? (
+          <>
+            <div className="right-section">
+              <h4>Session</h4>
+              <div className="kv"><span className="k">{activeSharedWorkspace ? 'Shared' : 'Thread'}</span><span className="v">{activeSharedWorkspace ? (activeSharedSession ? activeSharedSession.slice(0, 8) : '—') : (thread ? thread.slice(0, 8) : '—')}</span></div>
+              {activeSharedWorkspace && <div className="kv"><span className="k">Runtime</span><span className="v">{thread ? thread.slice(0, 8) : '—'}</span></div>}
+              <div className="kv"><span className="k">Status</span><span className="v"><span className={`pill ${ready ? '' : 'off'}`}>{ready ? 'live' : 'offline'}</span></span></div>
+              <div className="kv"><span className="k">Skills</span><span className="v">{usableSkillCount} ready</span></div>
             </div>
-          )}
-        </div>
-        <div className="right-section">
-          <h4>Runtime</h4>
-          <div className="kv"><span className="k">CWD</span><span className="v" title={runtimeCwd}>{shortPath(runtimeCwd)}</span></div>
-          <div className="kv"><span className="k">Model</span><span className="v">{runtimeProvider ?? '—'}</span></div>
-          <div className="kv"><span className="k">Provider</span><span className="v">{runtimeProviderName ?? '—'}</span></div>
-          <div className="kv"><span className="k">Wire API</span><span className="v">{runtime.provider?.wireApi ?? 'responses'}</span></div>
-          <div className="kv"><span className="k">Artifacts</span><span className="v">{artifactRuntimeStatus}</span></div>
-          <div className="kv"><span className="k">Sandbox</span><span className="v">{formatSandboxPolicy(runtime.sandbox, runtime.permissionProfile)}</span></div>
-          <div className="kv"><span className="k">Approval</span><span className="v">{formatApprovalPolicy(runtime.approvalPolicy)}</span></div>
-          {runtime.activePermissionProfile?.id && <div className="kv"><span className="k">Profile</span><span className="v">{runtime.activePermissionProfile.id}</span></div>}
-        </div>
-        <div className="right-section">
-          <h4>{activeSharedWorkspace ? t('nav.sharedArtifacts') : t('nav.files')}</h4>
-          <div className="file-actions">
-            <button onClick={() => activeSharedWorkspace ? refreshSharedArtifactsForActiveSession(true) : revealFilePath(runtime.attachmentDir)} disabled={activeSharedWorkspace ? !activeSharedSession : !runtime.attachmentDir}>
-              {activeSharedWorkspace ? 'Refresh shared' : 'Attachments'}
-            </button>
-            <button onClick={() => revealFilePath(runtime.workspaceRoot)} disabled={!runtime.workspaceRoot} title={activeSharedWorkspace ? 'Opens this machine’s local runtime folder, not the shared server files.' : undefined}>
-              {activeSharedWorkspace ? 'Local runtime' : t('nav.workspace')}
-            </button>
-            {activeSharedWorkspace && (
-              <button onClick={openSharedArtifactFolder} disabled={!activeSharedSession}>
-                Open downloads
-              </button>
-            )}
-            {activeSharedWorkspace && (
-              <button onClick={() => openPanel('files')} disabled={!activeSharedSession}>
-                Artifacts
-              </button>
-            )}
-          </div>
-          {visibleWorkspaceFiles.length === 0 ? (
-            <div className="right-empty">{activeSharedWorkspace ? t('sidebar.noSharedArtifacts') : t('sidebar.noFiles')}</div>
-          ) : (
-            <div className="file-list">
-              {visibleWorkspaceFiles.slice(0, 8).map((file) => (
-                <div className="file-row" key={file.path}>
-                  <div className="file-row-main">
-                    <span className={`file-status file-status-${file.status}`}>{file.status}</span>
-                    <button title={file.path} onClick={() => openWorkspaceFile(file)}>{file.name}</button>
-                  </div>
-                  <button className="file-reveal" onClick={() => file.sharedArtifact ? downloadWorkspaceFile(file) : revealWorkspaceFile(file)}>{file.sharedArtifact ? 'Download' : 'Reveal'}</button>
+            <div className="right-section">
+              <h4>Enterprise</h4>
+              <div className="kv"><span className="k">Shared</span><span className="v">{enterprise?.signedIn ? 'connected' : 'not signed in'}</span></div>
+              <div className="kv"><span className="k">Account</span><span className="v" title={enterprise?.account?.username}>{enterprise?.account?.username ?? '—'}</span></div>
+              <div className="kv"><span className="k">Workspaces</span><span className="v">{sharedWorkspaces.length}</span></div>
+              {activeSharedWorkspace && <div className="kv"><span className="k">Sessions</span><span className="v">{sharedSessions.length}</span></div>}
+              <div className="file-actions">
+                {enterprise?.signedIn ? (
+                  <>
+                    <button onClick={() => void refreshEnterprise(true)} disabled={enterpriseBusy}>Refresh</button>
+                    {activeSharedWorkspace && <button onClick={exitSharedWorkspace} disabled={enterpriseBusy}>Local</button>}
+                    <button onClick={signOutEnterprise} disabled={enterpriseBusy}>Sign out</button>
+                  </>
+                ) : (
+                  <button onClick={signInEnterprise} disabled={enterpriseBusy}>{enterpriseBusy ? t('workspace.connecting') : t('workspace.signIn')}</button>
+                )}
+              </div>
+              {enterpriseDeviceCode?.userCode && (
+                <div className="device-code">
+                  <strong>{enterpriseDeviceCode.userCode}</strong>
+                  <span>Use this code in the browser window to finish Entra sign-in.</span>
                 </div>
-              ))}
+              )}
             </div>
-          )}
-        </div>
+            <div className="right-section">
+              <h4>Runtime</h4>
+              <div className="kv"><span className="k">CWD</span><span className="v" title={runtimeCwd}>{shortPath(runtimeCwd)}</span></div>
+              <div className="kv"><span className="k">Model</span><span className="v">{runtimeProvider ?? '—'}</span></div>
+              <div className="kv"><span className="k">Provider</span><span className="v">{runtimeProviderName ?? '—'}</span></div>
+              <div className="kv"><span className="k">Wire API</span><span className="v">{runtime.provider?.wireApi ?? 'responses'}</span></div>
+              <div className="kv"><span className="k">Artifacts</span><span className="v">{artifactRuntimeStatus}</span></div>
+              <div className="kv"><span className="k">Sandbox</span><span className="v">{formatSandboxPolicy(runtime.sandbox, runtime.permissionProfile)}</span></div>
+              <div className="kv"><span className="k">Approval</span><span className="v">{formatApprovalPolicy(runtime.approvalPolicy)}</span></div>
+              {runtime.activePermissionProfile?.id && <div className="kv"><span className="k">Profile</span><span className="v">{runtime.activePermissionProfile.id}</span></div>}
+            </div>
+            <div className="right-section">
+              <h4>{activeSharedWorkspace ? t('nav.sharedArtifacts') : t('nav.files')}</h4>
+              <div className="file-actions">
+                <button onClick={() => activeSharedWorkspace ? refreshSharedArtifactsForActiveSession(true) : revealFilePath(runtime.attachmentDir)} disabled={activeSharedWorkspace ? !activeSharedSession : !runtime.attachmentDir}>
+                  {activeSharedWorkspace ? 'Refresh shared' : 'Attachments'}
+                </button>
+                <button onClick={() => revealFilePath(runtime.workspaceRoot)} disabled={!runtime.workspaceRoot} title={activeSharedWorkspace ? 'Opens this machine’s local runtime folder, not the shared server files.' : undefined}>
+                  {activeSharedWorkspace ? 'Local runtime' : t('nav.workspace')}
+                </button>
+                {activeSharedWorkspace && (
+                  <button onClick={openSharedArtifactFolder} disabled={!activeSharedSession}>
+                    Open downloads
+                  </button>
+                )}
+                {activeSharedWorkspace && (
+                  <button onClick={() => openPanel('files')} disabled={!activeSharedSession}>
+                    Artifacts
+                  </button>
+                )}
+              </div>
+              {visibleWorkspaceFiles.length === 0 ? (
+                <div className="right-empty">{activeSharedWorkspace ? t('sidebar.noSharedArtifacts') : t('sidebar.noFiles')}</div>
+              ) : (
+                <div className="file-list">
+                  {visibleWorkspaceFiles.slice(0, 8).map((file) => (
+                    <div className="file-row" key={file.path}>
+                      <div className="file-row-main">
+                        <span className={`file-status file-status-${file.status}`}>{file.status}</span>
+                        <button title={file.path} onClick={() => openWorkspaceFile(file)}>{file.name}</button>
+                      </div>
+                      <button className="file-reveal" onClick={() => file.sharedArtifact ? downloadWorkspaceFile(file) : revealWorkspaceFile(file)}>{file.sharedArtifact ? 'Download' : 'Reveal'}</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </>
+        ) : (
+          <BrowserSurface
+            initialUrl=""
+            isOverlayActive={showSettings || !!zoomedImage || panel !== null}
+            onSelection={handleBrowserSelection}
+          />
+        )}
       </aside>
+
 
       {showSettings && (
         <SettingsModal

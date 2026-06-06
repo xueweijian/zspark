@@ -39,6 +39,10 @@ import { openInIDE } from './ideLauncher'
 let mainWindow: BrowserWindow | null = null
 let codex: ChildProcessWithoutNullStreams | null = null
 
+import { ElectronPreviewService } from './services/preview'
+const previewService = new ElectronPreviewService()
+
+
 function safeSendToRenderer(channel: string, ...args: any[]) {
   if (mainWindow && !mainWindow.isDestroyed() && !mainWindow.webContents.isDestroyed()) {
     mainWindow.webContents.send(channel, ...args)
@@ -1572,6 +1576,50 @@ ipcMain.handle('ides:open', async (_event, ide, projectPath) => {
   return await openInIDE(ide, projectPath)
 })
 
+// 注册预览浏览器视口 IPC 监听接口
+ipcMain.on('preview-message-from-page', (_e, raw: string) => {
+  previewService.handlePageMessage(raw).catch((err) => {
+    console.error('[preview] failed to handle page message:', err)
+  })
+})
+
+ipcMain.handle('preview:open', (_e, { url, bounds }: { url: string; bounds: any }) => {
+  if (mainWindow) {
+    previewService.open(mainWindow, url, bounds)
+    return true
+  }
+  return false
+})
+
+ipcMain.handle('preview:navigate', (_e, url: string) => {
+  previewService.message({ type: 'exit-picker' })
+  if (mainWindow) {
+    previewService.open(mainWindow, url, { x: 0, y: 0, width: 0, height: 0 })
+  }
+  return true
+})
+
+ipcMain.handle('preview:setBounds', (_e, bounds: any) => {
+  previewService.setBounds(bounds)
+  return true
+})
+
+ipcMain.handle('preview:setVisible', (_e, visible: boolean) => {
+  previewService.setVisible(visible)
+  return true
+})
+
+ipcMain.handle('preview:close', () => {
+  previewService.close()
+  return true
+})
+
+ipcMain.handle('preview:message', (_e, payload: any) => {
+  previewService.message(payload)
+  return true
+})
+
+
 app.whenReady().then(async () => {
   // Apply saved active workspace before spawning codex
   const settings = loadSettings()
@@ -1593,6 +1641,7 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
+  previewService.close()
   void killCodex(codex)
   bridgeClose?.()
   if (process.platform !== 'darwin') app.quit()

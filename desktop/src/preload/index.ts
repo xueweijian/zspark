@@ -64,8 +64,20 @@ const api = {
     const listener = () => cb()
     ipcRenderer.on('codex:spawned', listener)
     return () => ipcRenderer.removeListener('codex:spawned', listener)
+  },
+  previewOpen: (url: string, bounds: { x: number; y: number; width: number; height: number }) => ipcRenderer.invoke('preview:open', { url, bounds }),
+  previewNavigate: (url: string) => ipcRenderer.invoke('preview:navigate', url),
+  previewSetBounds: (bounds: { x: number; y: number; width: number; height: number }) => ipcRenderer.invoke('preview:setBounds', bounds),
+  previewSetVisible: (visible: boolean) => ipcRenderer.invoke('preview:setVisible', visible),
+  previewClose: () => ipcRenderer.invoke('preview:close'),
+  previewMessage: (payload: any) => ipcRenderer.invoke('preview:message', payload),
+  onPreviewEvent: (cb: (payload: any) => void) => {
+    const listener = (_e: IpcRendererEvent, payload: any) => cb(payload)
+    ipcRenderer.on('preview:event', listener)
+    return () => ipcRenderer.removeListener('preview:event', listener)
   }
 }
 
 contextBridge.exposeInMainWorld('zspark', api)
 export type ZsparkApi = typeof api
+

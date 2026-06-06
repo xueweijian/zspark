@@ -269,5 +269,169 @@
     "starter3Desc": "为高管汇报生成五页 PPT 大纲。",
     "starter4Title": "自动化工作流",
     "starter4Desc": "用自然语言创建定时重复任务。"
-  }
+  },
+  "slash": {
+    "model": {
+      "desc": "选择模型和推理深度"
+    },
+    "ide": {
+      "desc": "引入当前 IDE 的选择、打开文件和其他上下文",
+      "hint": "<参数>"
+    },
+    "permissions": {
+      "desc": "配置 Codex 的沙箱执行权限"
+    },
+    "keymap": {
+      "desc": "重新映射快捷键",
+      "hint": "<参数>"
+    },
+    "vim": {
+      "desc": "切换 Vim 模式"
+    },
+    "setup-default-sandbox": {
+      "desc": "设置默认提升的沙箱权限"
+    },
+    "sandbox-add-read-dir": {
+      "desc": "让沙箱能够读取指定目录",
+      "hint": "<参数>"
+    },
+    "experimental": {
+      "desc": "切换实验性功能"
+    },
+    "approve": {
+      "desc": "批准重试最近一次被自动审查拒绝的请求"
+    },
+    "memories": {
+      "desc": "配置记忆的使用和生成"
+    },
+    "skills": {
+      "desc": "使用技能以改善 Codex 执行特定任务的表现"
+    },
+    "hooks": {
+      "desc": "查看并管理生命周期钩子"
+    },
+    "review": {
+      "desc": "评审我当前的更改并查找问题",
+      "hint": "<参数>"
+    },
+    "rename": {
+      "desc": "重命名当前会话",
+      "hint": "<参数>"
+    },
+    "new": {
+      "desc": "在当前会话中开始新聊天"
+    },
+    "resume": {
+      "desc": "继续一个已保存的聊天",
+      "hint": "<参数>"
+    },
+    "fork": {
+      "desc": "分支当前聊天"
+    },
+    "init": {
+      "desc": "创建一个包含指引的 AGENTS.md 文件"
+    },
+    "compact": {
+      "desc": "压缩总结对话以防止超出上下文限制"
+    },
+    "plan": {
+      "desc": "切换到计划模式",
+      "hint": "<参数>"
+    },
+    "goal": {
+      "desc": "设置或查看长时间运行任务的目标",
+      "hint": "<参数>"
+    },
+    "collab": {
+      "desc": "更改协作模式 (实验性)"
+    },
+    "agent": {
+      "desc": "切换当前活跃的 Agent 线程"
+    },
+    "side": {
+      "desc": "在临时分支中开始侧边栏对话",
+      "hint": "<参数>"
+    },
+    "copy": {
+      "desc": "将上一次回复复制为 markdown"
+    },
+    "raw": {
+      "desc": "切换原始回滚模式，便于终端选择复制",
+      "hint": "<参数>"
+    },
+    "diff": {
+      "desc": "展示 git diff（包括未跟踪文件）"
+    },
+    "mention": {
+      "desc": "引用文件"
+    },
+    "status": {
+      "desc": "展示当前会话配置及 Token 使用情况"
+    },
+    "debug-config": {
+      "desc": "展示配置层和要求源以便于调试"
+    },
+    "title": {
+      "desc": "配置要在终端标题中显示的项"
+    },
+    "statusline": {
+      "desc": "配置要在状态栏中显示的项"
+    },
+    "theme": {
+      "desc": "选择语法高亮主题"
+    },
+    "ps": {
+      "desc": "列出后台终端"
+    },
+    "stop": {
+      "desc": "停止所有后台终端"
+    },
+    "clean": {
+      "desc": "停止并清理后台终端"
+    },
+    "mcp": {
+      "desc": "列出已配置的 MCP 工具",
+      "hint": "<参数>"
+    },
+    "apps": {
+      "desc": "管理应用"
+    },
+    "plugins": {
+      "desc": "浏览插件"
+    },
+    "logout": {
+      "desc": "退出登录"
+    },
+    "quit": {
+      "desc": "退出应用"
+    },
+    "exit": {
+      "desc": "退出应用"
+    },
+    "feedback": {
+      "desc": "发送日志给维护者"
+    },
+    "rollout": {
+      "desc": "打印 rollout 文件路径"
+    },
+    "test-approval": {
+      "desc": "测试审批请求"
+    },
+    "subagents": {
+      "desc": "切换当前活跃的子代理线程"
+    },
+    "personality": {
+      "desc": "为 Codex 选择交流风格"
+    },
+    "realtime": {
+      "desc": "切换实时语音模式 (实验性)"
+    },
+    "settings": {
+      "desc": "配置实时麦克风/扬声器"
+    },
+    "clear": {
+      "desc": "清空终端并开始新聊天"
+    }
+  },
+  "skill": {}
 }

@@ -269,5 +269,169 @@
     "starter3Desc": "Five-slide outline for an exec readout.",
     "starter4Title": "Automate a workflow",
     "starter4Desc": "Schedule a recurring task from natural language."
-  }
+  },
+  "slash": {
+    "model": {
+      "desc": "choose what model and reasoning effort to use"
+    },
+    "ide": {
+      "desc": "include current selection, open files, and other context from your IDE",
+      "hint": "<参数>"
+    },
+    "permissions": {
+      "desc": "choose what Codex is allowed to do"
+    },
+    "keymap": {
+      "desc": "remap TUI shortcuts",
+      "hint": "<参数>"
+    },
+    "vim": {
+      "desc": "toggle Vim mode for the composer"
+    },
+    "setup-default-sandbox": {
+      "desc": "set up elevated agent sandbox"
+    },
+    "sandbox-add-read-dir": {
+      "desc": "let sandbox read a directory: /sandbox-add-read-dir <absolute_path>",
+      "hint": "<参数>"
+    },
+    "experimental": {
+      "desc": "toggle experimental features"
+    },
+    "approve": {
+      "desc": "approve one retry of a recent auto-review denial"
+    },
+    "memories": {
+      "desc": "configure memory use and generation"
+    },
+    "skills": {
+      "desc": "use skills to improve how Codex performs specific tasks"
+    },
+    "hooks": {
+      "desc": "view and manage lifecycle hooks"
+    },
+    "review": {
+      "desc": "review my current changes and find issues",
+      "hint": "<参数>"
+    },
+    "rename": {
+      "desc": "rename the current thread",
+      "hint": "<参数>"
+    },
+    "new": {
+      "desc": "start a new chat during a conversation"
+    },
+    "resume": {
+      "desc": "resume a saved chat",
+      "hint": "<参数>"
+    },
+    "fork": {
+      "desc": "fork the current chat"
+    },
+    "init": {
+      "desc": "create an AGENTS.md file with instructions for Codex"
+    },
+    "compact": {
+      "desc": "summarize conversation to prevent hitting the context limit"
+    },
+    "plan": {
+      "desc": "switch to Plan mode",
+      "hint": "<参数>"
+    },
+    "goal": {
+      "desc": "set or view the goal for a long-running task",
+      "hint": "<参数>"
+    },
+    "collab": {
+      "desc": "change collaboration mode (experimental)"
+    },
+    "agent": {
+      "desc": "switch the active agent thread"
+    },
+    "side": {
+      "desc": "start a side conversation in an ephemeral fork",
+      "hint": "<参数>"
+    },
+    "copy": {
+      "desc": "copy last response as markdown"
+    },
+    "raw": {
+      "desc": "toggle raw scrollback mode for copy-friendly terminal selection",
+      "hint": "<参数>"
+    },
+    "diff": {
+      "desc": "show git diff (including untracked files)"
+    },
+    "mention": {
+      "desc": "mention a file"
+    },
+    "status": {
+      "desc": "show current session configuration and token usage"
+    },
+    "debug-config": {
+      "desc": "show config layers and requirement sources for debugging"
+    },
+    "title": {
+      "desc": "configure which items appear in the terminal title"
+    },
+    "statusline": {
+      "desc": "configure which items appear in the status line"
+    },
+    "theme": {
+      "desc": "choose a syntax highlighting theme"
+    },
+    "ps": {
+      "desc": "list background terminals"
+    },
+    "stop": {
+      "desc": "stop all background terminals"
+    },
+    "clean": {
+      "desc": "stop and clean background terminals"
+    },
+    "mcp": {
+      "desc": "list configured MCP tools; use /mcp verbose for details",
+      "hint": "<参数>"
+    },
+    "apps": {
+      "desc": "manage apps"
+    },
+    "plugins": {
+      "desc": "browse plugins"
+    },
+    "logout": {
+      "desc": "log out of Codex"
+    },
+    "quit": {
+      "desc": "exit Codex"
+    },
+    "exit": {
+      "desc": "exit Codex"
+    },
+    "feedback": {
+      "desc": "send logs to maintainers"
+    },
+    "rollout": {
+      "desc": "print the rollout file path"
+    },
+    "test-approval": {
+      "desc": "test approval request"
+    },
+    "subagents": {
+      "desc": "switch the active agent thread"
+    },
+    "personality": {
+      "desc": "choose a communication style for Codex"
+    },
+    "realtime": {
+      "desc": "toggle realtime voice mode (experimental)"
+    },
+    "settings": {
+      "desc": "configure realtime microphone/speaker"
+    },
+    "clear": {
+      "desc": "clear the terminal and start a new chat"
+    }
+  },
+  "skill": {}
 }

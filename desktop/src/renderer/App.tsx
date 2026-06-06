@@ -3471,6 +3471,164 @@ function DesktopApp() {
       } catch {}
     }
   }
+  const handleLocalSlashCommand = async (text: string): Promise<boolean> => {
+    const trimmed = text.trim()
+    if (!trimmed.startsWith('/')) return false
+
+    const parts = trimmed.slice(1).split(/\s+/)
+    const cmdName = parts[0].toLowerCase()
+
+    // 检查这个命令是否在动态加载的 Slash 命令列表中
+    const matchedCmd = dynamicSlashCommands.find((c) => c.command.toLowerCase() === cmdName)
+    if (!matchedCmd) {
+      return false // 如果不是内置的 Slash 命令，不拦截（可能是普通路径，放行给大模型）
+    }
+
+    const args = trimmed.slice(cmdName.length + 2).trim()
+
+    switch (cmdName) {
+      case 'clear':
+        await newChat()
+        break
+      case 'quit':
+      case 'exit':
+        window.close()
+        break
+      case 'skills':
+        setPanel('skills')
+        break
+      case 'plugins':
+        setPanel('plugins')
+        break
+      case 'files':
+        setPanel('files')
+        break
+      case 'settings':
+      case 'model':
+        setShowSettings(true)
+        break
+      case 'permissions':
+        toast('info', t('permission.defaultDesc') || '配置 Codex 执行权限')
+        break
+      case 'new':
+        await startLocalChat()
+        break
+      case 'fork':
+        if (thread) {
+          try {
+            const res = await send('thread/fork', { threadId: thread })
+            if (res.result?.thread?.id) {
+              await switchLocalThread(res.result.thread.id)
+              toast('success', '会话分支成功！')
+            } else if (res.error) {
+              toast('error', `分支失败: ${res.error.message}`)
+            }
+          } catch (e: any) {
+            toast('error', `分支出错: ${e.message}`)
+          }
+        } else {
+          toast('warn', '没有活动的会话可用于分支。')
+        }
+        break
+      case 'compact':
+        if (thread) {
+          try {
+            const res = await send('thread/compact/start', { threadId: thread })
+            if (res.error) {
+              toast('error', `上下文压缩失败: ${res.error.message}`)
+            } else {
+              toast('success', '上下文压缩已启动！')
+            }
+          } catch (e: any) {
+            toast('error', `压缩出错: ${e.message}`)
+          }
+        } else {
+          toast('warn', '没有活动的会话可用于上下文压缩。')
+        }
+        break
+      case 'status':
+        setBlocks((prev) => [
+          ...prev,
+          {
+            type: 'agent',
+            id: `local-status-${Date.now()}`,
+            text: `**客户端状态**
+- **当前模型**: \`${runtime.model || '默认'}\`
+- **推理深度**: \`${runtime.reasoningEffort || '默认'}\`
+- **活动会话**: \`${thread || '无'}\`
+- **工作区路径**: \`${runtime.cwd || runtime.workspaceRoot || '无'}\`
+- **执行权限**: \`${permissionLevel}\`
+- **Token 消耗**: ${tokenUsage ? `\`输入: ${tokenUsage.promptTokens} / 输出: ${tokenUsage.completionTokens} / 总计: ${tokenUsage.totalTokens}\`` : '\`未知\`'}`,
+          } as any
+        ])
+        break
+      case 'mcp':
+        try {
+          const res = await send('mcpServerStatus/list')
+          const servers = res.result?.data ?? []
+          if (servers.length === 0) {
+            setBlocks((prev) => [...prev, { type: 'agent', id: `mcp-${Date.now()}`, text: '未配置任何 MCP 服务器。' }])
+          } else {
+            const mcpText = servers.map((s: any) => `- **${s.name}**: ${s.status} ${s.error ? `(错误: ${s.error})` : ''}`).join('\n')
+            setBlocks((prev) => [...prev, { type: 'agent', id: `mcp-${Date.now()}`, text: `**MCP 工具状态**:\n${mcpText}` }])
+          }
+        } catch (e: any) {
+          toast('error', `MCP 状态获取失败: ${e.message}`)
+        }
+        break
+      case 'apps':
+        try {
+          const res = await send('app/list', { threadId: thread || undefined })
+          const appsList = res.result?.data ?? []
+          if (appsList.length === 0) {
+            setBlocks((prev) => [...prev, { type: 'agent', id: `apps-${Date.now()}`, text: '未安装任何 App。' }])
+          } else {
+            const appsText = appsList.map((a: any) => `- **${a.name}**: ${a.description || '无描述'}`).join('\n')
+            setBlocks((prev) => [...prev, { type: 'agent', id: `apps-${Date.now()}`, text: `**已安装的 App**:\n${appsText}` }])
+          }
+        } catch (e: any) {
+          toast('error', `App 列表获取失败: ${e.message}`)
+        }
+        break
+      case 'review':
+        if (thread) {
+          try {
+            toast('info', '正在启动代码审查，请稍候...')
+            const res = await send('review/start', {
+              threadId: thread,
+              target: { type: 'uncommittedChanges' }
+            })
+            if (res.error) {
+              toast('error', `审查失败: ${res.error.message}`)
+            }
+          } catch (e: any) {
+            toast('error', `代码审查出错: ${e.message}`)
+          }
+        } else {
+          toast('warn', '没有活动会话可用于审查。')
+        }
+        break
+      case 'rename':
+        if (thread) {
+          if (args) {
+            await renameThread(thread, args)
+            toast('success', '会话重命名成功！')
+          } else {
+            toast('warn', '使用方法: /rename <新标题>')
+          }
+        } else {
+          toast('warn', '没有活动的会话可重命名。')
+        }
+        break
+      default:
+        // 其它在 dynamicSlashCommands 列表内，但 GUI 未完全接管逻辑的命令
+        // 比如 /theme, /vim, /keymap 等 TUI 专属命令，拦截并提示，防止发给大模型
+        toast('info', `命令 "/${cmdName}" 是 TUI（终端）专属命令或暂不支持，请在 GUI 中使用对应的可视化面板。`)
+        break
+    }
+    return true
+  }
+
   const submit = async (
     override?: string,
     options: { inputItems?: TurnInputItem[]; attachments?: AttachmentMeta[]; skills?: SkillMeta[]; clearComposer?: boolean } = {}
@@ -3480,6 +3638,18 @@ function DesktopApp() {
     const currentAttachments = options.attachments ?? (fromComposer ? attachments : [])
     const currentSkills = options.skills ?? (fromComposer ? selectedSkills : [])
     const rawText = (override ?? input).trim()
+
+    if (rawText.startsWith('/')) {
+      const handled = await handleLocalSlashCommand(rawText)
+      if (handled) {
+        if (fromComposer || options.clearComposer === true) {
+          clearComposerText()
+          setAttachments([])
+          setSelectedSkills([])
+        }
+        return
+      }
+    }
     if (streaming || submitInFlight.current) {
       toast('warn', 'Current turn is still running. Stop it or wait before sending another message.')
       return
@@ -4111,33 +4281,37 @@ function DesktopApp() {
         <div className="chat-input-wrap">
           {suggestionType === 'slash' && filteredSlashCommands.length > 0 && (
             <div className="slash-commands-menu glass-morphism">
-              {filteredSlashCommands.map((cmd, idx) => (
-                <div
-                  key={cmd.command}
-                  className={`slash-command-item ${idx === suggestionSelectedIndex ? 'active' : ''}`}
-                  onClick={() => executeSlashCommand(cmd)}
-                >
-                  <span className="command-name">/{cmd.command}</span>
-                  {cmd.argumentHint && <span className="command-hint">{cmd.argumentHint}</span>}
-                  <span className="command-desc">{cmd.description}</span>
-                </div>
-              ))}
+              <div className="slash-commands-list">
+                {filteredSlashCommands.map((cmd, idx) => (
+                  <div
+                    key={cmd.command}
+                    className={`slash-command-item ${idx === suggestionSelectedIndex ? 'active' : ''}`}
+                    onClick={() => executeSlashCommand(cmd)}
+                  >
+                    <span className="command-name">/{cmd.command}</span>
+                    {cmd.argumentHint && <span className="command-hint">{t(`slash.${cmd.command}.hint`, { defaultValue: cmd.argumentHint })}</span>}
+                    <span className="command-desc">{t(`slash.${cmd.command}.desc`, { defaultValue: cmd.description })}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
           {suggestionType === 'skill' && filteredSkills.length > 0 && (
             <div className="skills-suggestions-menu glass-morphism">
-              {filteredSkills.map((skill, idx) => (
-                <div
-                  key={skill.path ?? skill.name}
-                  className={`skill-suggestion-item ${idx === suggestionSelectedIndex ? 'active' : ''}`}
-                  onClick={() => executeSkillSuggestion(skill)}
-                >
-                  <IconSkills />
-                  <span className="skill-name">{skill.displayName ?? skill.name}</span>
-                  <span className="skill-desc">{skill.shortDescription ?? skill.description}</span>
-                </div>
-              ))}
+              <div className="skills-suggestions-list">
+                {filteredSkills.map((skill, idx) => (
+                  <div
+                    key={skill.path ?? skill.name}
+                    className={`skill-suggestion-item ${idx === suggestionSelectedIndex ? 'active' : ''}`}
+                    onClick={() => executeSkillSuggestion(skill)}
+                  >
+                    <IconSkills />
+                    <span className="skill-name">{t(`skill.${skill.name}.name`, { defaultValue: skill.displayName ?? skill.name })}</span>
+                    <span className="skill-desc">{t(`skill.${skill.name}.desc`, { defaultValue: skill.shortDescription ?? skill.description })}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 

@@ -1244,3 +1244,276 @@ input,textarea,select{font:inherit}
   background: rgba(124, 58, 237, 0.08) !important;
   transform: translateX(2px);
 }
+
+/* Sidebar Additions - 搜索过滤、双击重命名与批量删除 */
+
+/* 搜索过滤框 */
+.session-search-wrapper {
+  position: relative;
+  margin: 6px 10px 8px;
+  display: flex;
+  align-items: center;
+}
+
+.session-search-input {
+  width: 100%;
+  padding: 6px 28px 6px 10px;
+  font-size: 12.5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface-soft);
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.session-search-input:focus {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.session-search-clear {
+  position: absolute;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+
+.session-search-clear:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+}
+
+.session-search-clear svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* 批量管理按钮 */
+.sidebar-section-batch-btn {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #fff;
+  transition: all 0.12s;
+  cursor: pointer;
+}
+
+.sidebar-section-batch-btn:hover {
+  background: var(--surface-hover);
+  color: var(--text);
+  border-color: var(--border-strong);
+}
+
+.sidebar-section-batch-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: var(--accent);
+}
+
+/* 批量操作控制条 */
+.session-batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 4px 10px 8px;
+  padding: 6px 8px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  gap: 8px;
+}
+
+.session-batch-count {
+  font-size: 11.5px;
+  color: var(--muted-strong);
+  font-weight: 600;
+}
+
+.session-batch-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.session-batch-btn-all,
+.session-batch-btn-del {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  transition: all 0.12s;
+}
+
+.session-batch-btn-all:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-strong);
+}
+
+.session-batch-btn-del {
+  border-color: #fecaca;
+  color: var(--danger);
+}
+
+.session-batch-btn-del:hover:not(:disabled) {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.session-batch-btn-del:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  border-color: var(--border);
+  color: var(--muted);
+}
+
+/* 批量选择复选框 */
+.thread-batch-checkbox {
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  cursor: pointer;
+  outline: none;
+  flex-shrink: 0;
+}
+
+/* 选中项的高亮样式 */
+.nav-item-thread.selected {
+  background: var(--surface-hover);
+  box-shadow: inset 0 0 0 1px var(--border-strong);
+}
+
+/* 双击重命名编辑框 */
+.thread-rename-input {
+  flex: 1;
+  font-size: 13.5px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  outline: none;
+  background: #fff;
+  color: var(--text);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+  width: 100%;
+}
+
+/* 新增：项目-会话嵌套侧边栏结构样式 */
+.project-groups-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 4px;
+}
+.project-group-item {
+  display: flex;
+  flex-direction: column;
+}
+.project-group-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background .12s;
+  user-select: none;
+}
+.project-group-header:hover {
+  background: var(--surface-hover);
+}
+.project-group-header.active {
+  background: var(--accent-soft);
+}
+.project-collapse-toggle {
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #71717a;
+  font-size: 11px;
+  font-weight: bold;
+  cursor: pointer;
+  border-radius: 4px;
+  transition: background .12s, color .12s;
+}
+.project-collapse-toggle:hover {
+  background: rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+.project-folder-icon {
+  font-size: 13px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+.project-name {
+  flex: 1;
+  font-size: 12.5px;
+  color: #3f3f46;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.project-group-header.active .project-name {
+  font-weight: 700;
+  color: #1d4ed8;
+}
+.project-add-thread-btn {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.project-add-thread-btn:hover {
+  background: #cbd5e1;
+  color: #0f172a;
+}
+.project-inactive-dot {
+  font-size: 8px;
+  color: #cbd5e1;
+  margin-right: 4px;
+}
+.project-threads-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+  padding-left: 20px; /* 控制缩进 */
+  border-left: 1px dashed rgba(15, 23, 42, 0.08);
+  margin-left: 16px;
+}
+.nested-thread-item {
+  height: 28px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.thread-item-bullet {
+  font-size: 12px;
+  color: #a1a1aa;
+  margin-right: 6px;
+  font-weight: bold;
+}
+

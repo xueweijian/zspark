@@ -1117,6 +1117,7 @@ fn unmatched_granular_policy_still_prompts_for_restricted_sandbox_escalation() {
                 sandbox_permissions: SandboxPermissions::RequireEscalated,
                 used_complex_parsing: false,
                 command_origin: ExecPolicyCommandOrigin::Generic,
+                sandbox_setup_is_complete: true,
             },
         )
     );
@@ -1139,6 +1140,7 @@ fn unmatched_on_request_uses_split_filesystem_policy_for_escalation_prompts() {
                 sandbox_permissions: SandboxPermissions::RequireEscalated,
                 used_complex_parsing: false,
                 command_origin: ExecPolicyCommandOrigin::Generic,
+                sandbox_setup_is_complete: true,
             },
         )
     );
@@ -1287,6 +1289,7 @@ async fn mixed_rule_and_sandbox_prompt_prioritizes_rule_for_rejection_decision()
             sandbox_cwd: Path::new("/tmp"),
             sandbox_permissions: SandboxPermissions::RequireEscalated,
             prefix_rule: None,
+            sandbox_setup_is_complete: true,
         })
         .await;
 
@@ -1327,6 +1330,7 @@ async fn mixed_rule_and_sandbox_prompt_rejects_when_granular_rules_are_disabled(
             sandbox_cwd: Path::new("/tmp"),
             sandbox_permissions: SandboxPermissions::RequireEscalated,
             prefix_rule: None,
+            sandbox_setup_is_complete: true,
         })
         .await;
 
@@ -2008,6 +2012,7 @@ async fn verify_approval_requirement_for_unsafe_powershell_command() {
                 sandbox_cwd: Path::new("/tmp"),
                 sandbox_permissions: permissions,
                 prefix_rule: None,
+                sandbox_setup_is_complete: true,
             })
             .await,
         "{pwsh_approval_reason}"
@@ -2035,6 +2040,7 @@ async fn verify_approval_requirement_for_unsafe_powershell_command() {
                 sandbox_cwd: Path::new("/tmp"),
                 sandbox_permissions: permissions,
                 prefix_rule: None,
+                sandbox_setup_is_complete: true,
             })
             .await,
         r#"On all platforms, a forbidden command should require approval
@@ -2058,6 +2064,7 @@ async fn verify_approval_requirement_for_unsafe_powershell_command() {
                 sandbox_cwd: Path::new("/tmp"),
                 sandbox_permissions: permissions,
                 prefix_rule: None,
+                sandbox_setup_is_complete: true,
             })
             .await,
         r#"On all platforms, a forbidden command should require approval
@@ -2159,6 +2166,7 @@ async fn exec_approval_requirement_for_command(
             sandbox_cwd: Path::new("/tmp"),
             sandbox_permissions,
             prefix_rule,
+            sandbox_setup_is_complete: true,
         })
         .await
 }

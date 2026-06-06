@@ -284,7 +284,7 @@ export interface AppSettingsView {
   enterprise?: EnterpriseConfig
   mcpServers?: McpServerView[]
   warnings?: string[]
-  permissionLevel?: 'default' | 'auto' | 'full' | 'plan'
+  permissionLevel?: 'default' | 'auto' | 'full'
 }
 
 export interface WorkspaceRuntimeInfo {

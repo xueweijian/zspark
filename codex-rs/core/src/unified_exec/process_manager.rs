@@ -1001,6 +1001,11 @@ impl UnifiedExecProcessManager {
             context.turn.tools_config.unified_exec_shell_mode.clone(),
         );
         let file_system_sandbox_policy = context.turn.file_system_sandbox_policy();
+        let sandbox_setup_is_complete = if cfg!(windows) {
+            context.session.codex_home().await.is_ok()
+        } else {
+            true
+        };
         let exec_approval_requirement = context
             .session
             .services
@@ -1017,6 +1022,7 @@ impl UnifiedExecProcessManager {
                     request.sandbox_permissions
                 },
                 prefix_rule: request.prefix_rule.clone(),
+                sandbox_setup_is_complete,
             })
             .await;
         let req = UnifiedExecToolRequest {

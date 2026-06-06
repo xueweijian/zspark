@@ -53,7 +53,9 @@
         "to": "bin",
         "filter": [
           "codex",
-          "codex.exe"
+          "codex.exe",
+          "codex-windows-sandbox-setup.exe",
+          "codex-command-runner.exe"
         ]
       },
       {

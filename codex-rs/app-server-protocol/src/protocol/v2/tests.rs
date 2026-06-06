@@ -1455,6 +1455,25 @@ fn ask_for_approval_granular_defaults_missing_optional_flags_to_false() {
 }
 
 #[test]
+fn ask_for_approval_deserialization_aliases() {
+    let cases = vec![
+        (
+            serde_json::json!("untrusted"),
+            AskForApproval::UnlessTrusted,
+        ),
+        (serde_json::json!("auto"), AskForApproval::UnlessTrusted),
+        (serde_json::json!("full"), AskForApproval::UnlessTrusted),
+        (serde_json::json!("on-request"), AskForApproval::OnRequest),
+        (serde_json::json!("never"), AskForApproval::Never),
+    ];
+
+    for (json_val, expected) in cases {
+        let deserialized: AskForApproval = serde_json::from_value(json_val).unwrap();
+        assert_eq!(deserialized, expected);
+    }
+}
+
+#[test]
 fn ask_for_approval_granular_is_marked_experimental() {
     let reason =
         crate::experimental_api::ExperimentalApi::experimental_reason(&AskForApproval::Granular {

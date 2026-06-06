@@ -9038,6 +9038,7 @@ async fn rejects_escalated_permissions_when_policy_not_on_request() {
             sandbox_cwd: turn_context.cwd.as_path(),
             sandbox_permissions: SandboxPermissions::UseDefault,
             prefix_rule: None,
+            sandbox_setup_is_complete: true,
         })
         .await;
     assert!(matches!(

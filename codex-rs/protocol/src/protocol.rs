@@ -890,7 +890,7 @@ pub enum AskForApproval {
     /// Under this policy, only "known safe" commands—as determined by
     /// `is_safe_command()`—that **only read files** are auto‑approved.
     /// Everything else will ask the user to approve.
-    #[serde(rename = "untrusted")]
+    #[serde(rename = "untrusted", alias = "auto", alias = "full")]
     #[strum(serialize = "untrusted")]
     UnlessTrusted,
 
@@ -3925,6 +3925,22 @@ mod tests {
     use std::path::PathBuf;
     use tempfile::NamedTempFile;
     use tempfile::TempDir;
+
+    #[test]
+    fn test_ask_for_approval_deserialization_aliases() {
+        let cases = vec![
+            (json!("untrusted"), AskForApproval::UnlessTrusted),
+            (json!("auto"), AskForApproval::UnlessTrusted),
+            (json!("full"), AskForApproval::UnlessTrusted),
+            (json!("on-request"), AskForApproval::OnRequest),
+            (json!("never"), AskForApproval::Never),
+        ];
+
+        for (json_val, expected) in cases {
+            let deserialized: AskForApproval = serde_json::from_value(json_val).unwrap();
+            assert_eq!(deserialized, expected);
+        }
+    }
 
     fn sorted_writable_roots(roots: Vec<WritableRoot>) -> Vec<(PathBuf, Vec<PathBuf>)> {
         let mut sorted_roots: Vec<(PathBuf, Vec<PathBuf>)> = roots

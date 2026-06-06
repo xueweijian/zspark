@@ -49,8 +49,8 @@ function formatManagedPermissionProfile(permissionProfile: any): string {
 }
 
 function networkSuffix(enabled: unknown): string {
-  if (enabled === true) return i18n.t('sandbox.withNetwork')
-  if (enabled === false) return i18n.t('sandbox.noNetwork')
+  if (enabled === true || enabled === 'enabled') return i18n.t('sandbox.withNetwork')
+  if (enabled === false || enabled === 'disabled') return i18n.t('sandbox.noNetwork')
   return ''
 }
 

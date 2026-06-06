@@ -126,6 +126,7 @@ pub(crate) struct UnmatchedCommandContext<'a> {
     pub(crate) sandbox_permissions: SandboxPermissions,
     pub(crate) used_complex_parsing: bool,
     pub(crate) command_origin: ExecPolicyCommandOrigin,
+    pub(crate) sandbox_setup_is_complete: bool,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -246,6 +247,7 @@ pub(crate) struct ExecApprovalRequest<'a> {
     pub(crate) sandbox_cwd: &'a Path,
     pub(crate) sandbox_permissions: SandboxPermissions,
     pub(crate) prefix_rule: Option<Vec<String>>,
+    pub(crate) sandbox_setup_is_complete: bool,
 }
 
 impl ExecPolicyManager {
@@ -281,6 +283,7 @@ impl ExecPolicyManager {
             sandbox_cwd,
             sandbox_permissions,
             prefix_rule,
+            sandbox_setup_is_complete,
         } = req;
         let exec_policy = self.current();
         let ExecPolicyCommands {
@@ -303,6 +306,7 @@ impl ExecPolicyManager {
                     sandbox_permissions,
                     used_complex_parsing,
                     command_origin,
+                    sandbox_setup_is_complete,
                 },
             )
         };
@@ -641,6 +645,7 @@ pub(crate) fn render_decision_for_unmatched_command(
         sandbox_permissions,
         used_complex_parsing,
         command_origin,
+        sandbox_setup_is_complete,
     } = context;
     let is_known_safe = match command_origin {
         ExecPolicyCommandOrigin::Generic => is_known_safe_command(command),
@@ -656,11 +661,11 @@ pub(crate) fn render_decision_for_unmatched_command(
     // On Windows, ReadOnly sandbox is not a real sandbox, so special-case it
     // here.
     let environment_lacks_sandbox_protections = cfg!(windows)
-        && profile_is_managed_read_only(
+        && (profile_is_managed_read_only(
             permission_profile,
             file_system_sandbox_policy,
             sandbox_cwd,
-        );
+        ) || !sandbox_setup_is_complete);
 
     // If the command is flagged as dangerous or we have no sandbox protection,
     // we should never allow it to run without approval.

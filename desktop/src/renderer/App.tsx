@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { marked } from 'marked'
+import { Sidebar } from './Sidebar'
 import DOMPurify from 'dompurify'
 import {
   IconNewChat, IconSearch, IconSkills, IconPlugins, IconAutomations,
@@ -455,7 +456,7 @@ function rpcKey(id: JsonRpcId) {
 }
 
 function userApprovalParams(permissionLevel: string) {
-  const approvalPolicy = (permissionLevel === 'auto' || permissionLevel === 'full') ? 'auto' : 'on-request'
+  const approvalPolicy = (permissionLevel === 'auto' || permissionLevel === 'full') ? 'untrusted' : 'on-request'
   return { approvalPolicy, approvalsReviewer: USER_APPROVAL_REVIEWER }
 }
 
@@ -1072,7 +1073,7 @@ export function App() {
 function DesktopApp() {
   const { t, i18n } = useTranslation()
   const [blocks, setBlocks] = useState<Block[]>([])
-  const [permissionLevel, setPermissionLevel] = useState<'default' | 'auto' | 'full' | 'plan'>('default')
+  const [permissionLevel, setPermissionLevel] = useState<'default' | 'auto' | 'full'>('default')
   const [showPermissionMenu, setShowPermissionMenu] = useState(false)
   const [toasts, setToasts] = useState<Toast[]>([])
   const [input, setInput] = useState('')
@@ -2131,7 +2132,7 @@ function DesktopApp() {
       return
     }
     if (!request.turnId && currentTurn.current) request.turnId = currentTurn.current.turnId
-    if (canAutoApproveRequest(request)) {
+    if (permissionLevel === 'auto' || canAutoApproveRequest(request)) {
       autoApproveRequest(request)
       return
     }
@@ -2292,6 +2293,17 @@ function DesktopApp() {
   useEffect(() => {
     function handle(method: string, params: any) {
       switch (method) {
+        case 'windowsSandbox/setupCompleted': {
+          const success = params?.success
+          const error = params?.error
+          if (success) {
+            toast('success', 'Windows 沙盒配置成功')
+            refreshRuntimeHost()
+          } else {
+            toast('error', `Windows 沙盒配置失败: ${error || '未知错误'}`)
+          }
+          return
+        }
         case 'mcpServer/startupStatus/updated': {
           const name = typeof params?.name === 'string' ? params.name : ''
           const status = params?.status
@@ -2707,6 +2719,16 @@ function DesktopApp() {
         applyThreadRuntime(t.result)
         setThread(tid); setReady(true)
         refreshRuntimeHost()
+        try {
+          const readiness = await send('windowsSandbox/readiness', undefined)
+          const status = readiness.result?.status
+          if (status === 'updateRequired' || status === 'notConfigured') {
+            toast('info', '正在配置 Windows 沙盒环境，请在弹出的系统窗口中允许管理员权限。')
+            await send('windowsSandbox/setupStart', { mode: 'elevated' })
+          }
+        } catch (err: any) {
+          console.error('Failed to check windows sandbox readiness:', err)
+        }
       } catch (e: any) { toast('error', e?.message ?? String(e)) }
     }
     const offSpawned = window.zspark.onSpawned(() => {
@@ -3047,6 +3069,89 @@ function DesktopApp() {
       await send('thread/archive', { threadId: id })
       setThreads((p) => p.filter((t) => t.id !== id))
       if (thread === id) {
+        stickToBottom.current = true
+        setShowJumpToLatest(false)
+        resetLiveTurnState()
+        setBlocks([])
+        setThread(null)
+        const t = await send('thread/start', userApprovalParams(permissionLevel))
+        applyThreadRuntime(t.result)
+        setThread(t.result?.thread?.id ?? null)
+      }
+    } catch (err: any) { toast('error', err?.message ?? String(err)) }
+  }
+
+  const renameThread = async (id: string, newTitle: string) => {
+    if (!ready) return
+    try {
+      if (activeSharedWorkspaceRef.current) {
+        const workspaceId = activeSharedWorkspaceRef.current
+        const session = sharedSessions.find((s) => s.id === id)
+        if (!session) return
+        const isCurrent = activeSharedSessionRef.current === id
+        const baseRevision = isCurrent ? activeSharedSnapshotRevision.current : null
+        
+        const snapshot = isCurrent ? {
+          version: 1,
+          blocks,
+          localThreadId: threadRef.current,
+          title: newTitle,
+          updatedAt: Date.now()
+        } : undefined
+
+        const result = await window.zspark.enterpriseUpdateSession(workspaceId, id, {
+          title: newTitle,
+          localThreadId: session.local_thread_id ?? null,
+          baseRevision: baseRevision,
+          snapshot: snapshot
+        })
+        if (!result.ok) throw new Error(result.error ?? 'Could not rename shared session')
+        if (isCurrent) {
+          activeSharedSnapshotRevision.current = result.snapshotRevision ?? activeSharedSnapshotRevision.current
+          lastSharedSnapshotKey.current = JSON.stringify({ activeSharedWorkspace: workspaceId, activeSharedSession: id, localThreadId: threadRef.current, title: newTitle, blocks })
+        }
+        setSharedSessions((prev) => prev.map((s) => s.id === id ? { ...s, title: newTitle } : s))
+      } else {
+        try {
+          await send('thread/update', { threadId: id, name: newTitle })
+        } catch (e) {
+          console.warn('Backend does not support thread/update, updating in memory', e)
+        }
+        setThreads((prev) => prev.map((t) => t.id === id ? { ...t, name: newTitle, preview: newTitle } : t))
+      }
+    } catch (err: any) {
+      toast('error', err?.message ?? String(err))
+    }
+  }
+
+  const deleteMultipleThreads = async (ids: string[]) => {
+    if (!ready) return
+    if (!confirm(`确定要删除选中的 ${ids.length} 个会话吗？此操作无法撤销。`)) return
+    try {
+      if (activeSharedWorkspaceRef.current) {
+        const workspaceId = activeSharedWorkspaceRef.current
+        for (const id of ids) {
+          const result = await window.zspark.enterpriseDeleteSession(workspaceId, id)
+          if (!result.ok && result.status !== 204) throw new Error(result.error ?? 'Could not delete shared session')
+        }
+        setSharedSessions((p) => p.filter((session) => !ids.includes(session.id)))
+        if (activeSharedSessionRef.current && ids.includes(activeSharedSessionRef.current)) {
+          switchThreadSeq.current += 1
+          resetLiveTurnState()
+          activeSharedSessionRef.current = null
+          activeSharedSnapshotRevision.current = null
+          setActiveSharedSession(null)
+          setThread(null)
+          setBlocks([])
+          setWorkspaceFiles([])
+        }
+        return
+      }
+      for (const id of ids) {
+        await send('thread/archive', { threadId: id })
+      }
+      setThreads((p) => p.filter((t) => !ids.includes(t.id)))
+      if (thread && ids.includes(thread)) {
         stickToBottom.current = true
         setShowJumpToLatest(false)
         resetLiveTurnState()
@@ -3544,7 +3649,7 @@ function DesktopApp() {
     await submit(text, { inputItems: source.input?.length ? source.input : undefined })
   }
 
-  const changePermissionLevel = (level: 'default' | 'auto' | 'full' | 'plan') => {
+  const changePermissionLevel = (level: 'default' | 'auto' | 'full') => {
     setPermissionLevel(level)
     window.zspark.saveSettings({ permissionLevel: level } as any).catch(() => {})
   }
@@ -3560,11 +3665,7 @@ function DesktopApp() {
       }, 0)
     } else {
       setInput('')
-      if (cmd.command === 'plan') {
-        changePermissionLevel('plan')
-      } else {
-        submit(`/${cmd.command}`)
-      }
+      submit(`/${cmd.command}`)
     }
   }
 
@@ -3718,125 +3819,33 @@ function DesktopApp() {
 
   return (
     <div className="app">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-mark">z</div>
-          <div className="brand-copy">
-            <strong>zspark</strong>
-            <span>{t('brand.subtitle')}</span>
-          </div>
-        </div>
-        <div className="nav-item active" onClick={newChat}><IconNewChat /><span>{t('nav.newChat')}</span></div>
-        <div className="nav-item" onClick={() => openPanel('search')}><IconSearch /><span>{t('nav.search')}</span></div>
-        <div className="nav-item" onClick={() => openPanel('skills')}><IconSkills /><span>{t('nav.skills')}</span></div>
-        <div className="nav-item" onClick={() => openPanel('plugins')}><IconPlugins /><span>{t('nav.plugins')}</span></div>
-        <div className="nav-item" onClick={() => openPanel('automations')}><IconAutomations /><span>{t('nav.automations')}</span></div>
-        {activeSharedWorkspace && (
-          <button className="local-workspace-btn" onClick={exitSharedWorkspace}>
-            <IconProject /><span>Local workspace</span>
-          </button>
-        )}
-
-        {/* 本地工作区区域 */}
-        <div className="sidebar-section">
-          <div className="sidebar-section-head" onClick={() => toggleSection('localWorkspaces')}>
-            <span className="sidebar-section-toggle">{collapsedSections.localWorkspaces ? '▸' : '▾'}</span>
-            <span className="sidebar-section-title">{t('workspace.local')}</span>
-            <button className="sidebar-section-add" onClick={(e) => { e.stopPropagation(); pickWorkspace() }} title={t('workspace.add')}><span>+</span></button>
-          </div>
-          {!collapsedSections.localWorkspaces && (
-            <div className="workspace-list">
-              {recentWorkspaces.map((ws) => (
-                <div
-                  key={ws.path}
-                  className={`workspace-item${ws.isActive ? ' active' : ''}`}
-                  onClick={() => !ws.isActive && switchWorkspace(ws.path)}
-                  title={ws.path}
-                >
-                  <div className="workspace-item-row">
-                    <span className="workspace-dot">{ws.isActive ? '●' : '○'}</span>
-                    <span className="workspace-path">{ws.name}</span>
-                  </div>
-                  <div className="workspace-item-sub">
-                    <span className="workspace-preview">{getWorkspacePreview(ws.path)}</span>
-                    <span className="workspace-time">{ws.lastUsed ? fmtRelativeTime(ws.lastUsed) : ''}</span>
-                  </div>
-                </div>
-              ))}
-              <button className="workspace-picker-btn" onClick={pickWorkspace} disabled={workspaceBusy}>
-                <IconProject /> {t('workspace.selectDirectory')}
-              </button>
-            </div>
-          )}
-        </div>
-
-        {/* Shared workspaces */}
-        <div className="sidebar-section">
-          <div className="sidebar-section-head" onClick={() => toggleSection('sharedWorkspaces')}>
-            <span className="sidebar-section-toggle">{collapsedSections.sharedWorkspaces ? '▸' : '▾'}</span>
-            <span className="sidebar-section-title">{t('workspace.shared')}</span>
-            <button className="sidebar-section-action" onClick={(e) => { e.stopPropagation(); openPanel('shared') }} title={t('workspace.shared')}><IconShield /></button>
-          </div>
-          {!collapsedSections.sharedWorkspaces && (
-            <div className="shared-workspace-content">
-              {!enterprise?.signedIn ? (
-                <button className="shared-signin" onClick={signInEnterprise} disabled={enterpriseBusy}>
-                  {enterpriseBusy ? t('workspace.connecting') : t('workspace.signIn')}
-                </button>
-              ) : sharedWorkspaces.length === 0 ? (
-                <>
-                  <button className="shared-signin" onClick={createSharedWorkspace} disabled={enterpriseBusy}>
-                    {enterpriseBusy ? t('workspace.creating') : t('workspace.create')}
-                  </button>
-                  {enterpriseError && <div className="shared-sidebar-error">{enterpriseError}</div>}
-                </>
-              ) : (
-                <div className="shared-workspace-list">
-                  {sharedWorkspaces.slice(0, 5).map((workspace) => (
-                    <button
-                      key={workspace.id}
-                      className={activeSharedWorkspace === workspace.id ? 'active' : ''}
-                      onClick={() => selectSharedWorkspace(workspace.id)}
-                      title={workspace.name}
-                    >
-                      <IconProject />
-                      <span>{workspace.name}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* 最近会话 */}
-        <div className="sidebar-section">
-          <div className="sidebar-section-head" onClick={() => toggleSection('recent')}>
-            <span className="sidebar-section-toggle">{collapsedSections.recent ? '▸' : '▾'}</span>
-            <span className="sidebar-section-title">{activeSharedWorkspace ? t('sidebar.sharedSessions') : t('sidebar.recent')}</span>
-          </div>
-          {!collapsedSections.recent && (
-            <div className="thread-list">
-              {visibleThreads.slice(0, 8).map((threadItem) => (
-                <div
-                  key={threadItem.id}
-                  className={`nav-item nav-item-thread${activeThreadId === threadItem.id ? ' active' : ''}`}
-                  onClick={() => switchThread(threadItem.id)}
-                >
-                  <IconProject />
-                  <span className="thread-preview">{displayThreadPreview(threadItem)}</span>
-                  <button className="row-x" onClick={(e) => deleteThread(threadItem.id, e)} aria-label={t('sidebar.delete')} title={t('sidebar.delete')}><IconClose /></button>
-                </div>
-              ))}
-              {visibleThreads.length === 0 && (
-                <div className="nav-item" onClick={() => openPanel('history')} style={{ color: '#a1a1aa' }}>
-                  <IconProject /><span>{activeSharedWorkspace ? t('sidebar.noSharedYet') : t('sidebar.noChatsYet')}</span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </aside>
+      <Sidebar
+        t={t}
+        newChat={newChat}
+        openPanel={openPanel}
+        activeSharedWorkspace={activeSharedWorkspace}
+        exitSharedWorkspace={exitSharedWorkspace}
+        collapsedSections={collapsedSections}
+        toggleSection={toggleSection}
+        pickWorkspace={pickWorkspace}
+        recentWorkspaces={recentWorkspaces}
+        switchWorkspace={switchWorkspace}
+        getWorkspacePreview={getWorkspacePreview}
+        workspaceBusy={workspaceBusy}
+        enterprise={enterprise}
+        enterpriseBusy={enterpriseBusy}
+        enterpriseError={enterpriseError}
+        signInEnterprise={signInEnterprise}
+        createSharedWorkspace={createSharedWorkspace}
+        sharedWorkspaces={sharedWorkspaces}
+        selectSharedWorkspace={selectSharedWorkspace}
+        visibleThreads={visibleThreads}
+        activeThreadId={activeThreadId}
+        switchThread={switchThread}
+        deleteThread={deleteThread}
+        onRenameThread={renameThread}
+        onDeleteThreads={deleteMultipleThreads}
+      />
 
       <main className="chat">
         <div className="chat-header">
@@ -4145,7 +4154,6 @@ function DesktopApp() {
                 >
                   <IconShield />
                   <span>{
-                    permissionLevel === 'plan' ? t('permission.plan') :
                     permissionLevel === 'full' ? t('permission.full') :
                     permissionLevel === 'auto' ? t('permission.auto') : t('permission.default')
                   }</span>
@@ -4196,20 +4204,7 @@ function DesktopApp() {
                       </div>
                       {permissionLevel === 'full' && <IconCheck />}
                     </button>
-                    <button
-                      className={`permission-menu-item ${permissionLevel === 'plan' ? 'active' : ''}`}
-                      onClick={() => {
-                        changePermissionLevel('plan')
-                        setShowPermissionMenu(false)
-                      }}
-                    >
-                      <span className="dot plan"></span>
-                      <div className="menu-text">
-                        <span className="title">{t('permission.plan')}</span>
-                        <span className="desc">{t('permission.planDesc')}</span>
-                      </div>
-                      {permissionLevel === 'plan' && <IconCheck />}
-                    </button>
+
                   </div>
                 )}
               </div>

@@ -160,7 +160,7 @@ impl From<CoreNonSteerableTurnKind> for NonSteerableTurnKind {
 #[serde(rename_all = "kebab-case")]
 #[ts(rename_all = "kebab-case", export_to = "v2/")]
 pub enum AskForApproval {
-    #[serde(rename = "untrusted")]
+    #[serde(rename = "untrusted", alias = "auto", alias = "full")]
     #[ts(rename = "untrusted")]
     UnlessTrusted,
     OnFailure,

@@ -212,10 +212,9 @@ declare global {
       onStderr: (cb: (s: string) => void) => void | (() => void)
       onExit: (cb: (code: number | null) => void) => void | (() => void)
       onSpawned: (cb: () => void) => void | (() => void)
-    }
-    api?: {
       getSlashCommands?: () => Promise<any[]>
     }
+    api?: {}
   }
 }
 
@@ -1205,8 +1204,8 @@ function DesktopApp() {
     let active = true
     const loadSlashCommands = async () => {
       try {
-        if (window.api && typeof window.api.getSlashCommands === 'function') {
-          const cmds = await window.api.getSlashCommands()
+        if (window.zspark && typeof window.zspark.getSlashCommands === 'function') {
+          const cmds = await window.zspark.getSlashCommands()
           if (active && Array.isArray(cmds)) {
             setDynamicSlashCommands(cmds)
           }

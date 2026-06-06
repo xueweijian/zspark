@@ -244,7 +244,7 @@ input,textarea,select{font:inherit}
 .empty .card .d{font-size:12px;color:#71717a;line-height:1.45}
 
 /* Input */
-.chat-input-wrap{padding:10px max(15%,80px) 24px;background:linear-gradient(to top,#fbfcfd 72%,rgba(251,252,253,0))}
+.chat-input-wrap{position:relative;padding:10px max(15%,80px) 24px;background:linear-gradient(to top,#fbfcfd 72%,rgba(251,252,253,0))}
 @media (max-width:1300px){.chat-input-wrap{padding:10px max(8%,40px) 20px}}
 .chat-input{display:flex;flex-direction:column;gap:9px;background:#fff;border:1px solid #dbe3ee;border-radius:12px;padding:10px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 14px 34px rgba(15,23,42,.1);transition:border-color .12s,box-shadow .12s,background .12s}
 .chat-input:focus-within{border-color:#93c5fd;box-shadow:0 0 0 3px rgba(37,99,235,.08),0 16px 38px rgba(15,23,42,.11)}

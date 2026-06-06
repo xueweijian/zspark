@@ -1137,6 +1137,33 @@ function DesktopApp() {
   const [dynamicSlashCommands, setDynamicSlashCommands] = useState<any[]>([])
 
   const [rightActiveTab, setRightActiveTab] = useState<'files' | 'browser'>('files')
+  const [rightWidth, setRightWidth] = useState(300)
+
+  const handleRightResizeMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = rightWidth
+
+    const doDrag = (moveEvent: MouseEvent) => {
+      const newWidth = startWidth - (moveEvent.clientX - startX)
+      if (newWidth >= 200 && newWidth <= 800) {
+        setRightWidth(newWidth)
+      }
+    }
+
+    const stopDrag = () => {
+      document.removeEventListener('mousemove', doDrag)
+      document.removeEventListener('mouseup', stopDrag)
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+    }
+
+    document.addEventListener('mousemove', doDrag)
+    document.addEventListener('mouseup', stopDrag)
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+  }
+
 
   const handleBrowserSelection = async (payload: any) => {
     const { promptText, displayName } = buildSelectionPrompt(payload)
@@ -4102,7 +4129,7 @@ function DesktopApp() {
   const visibleWorkspaceFiles = activeSharedWorkspace ? sharedWorkspaceFiles : workspaceFiles
 
   return (
-    <div className="app">
+    <div className="app" style={{ '--aside-right-width': `${rightWidth}px` } as React.CSSProperties}>
       <Sidebar
         t={t}
         newChat={newChat}
@@ -4596,6 +4623,13 @@ function DesktopApp() {
       </main>
 
       <aside className="right">
+        <div
+          className="right-resize-handle"
+          onMouseDown={handleRightResizeMouseDown}
+          title="双击恢复默认宽度"
+          onDoubleClick={() => setRightWidth(300)}
+        />
+
         <div className="aside-tabs">
           <button className={rightActiveTab === 'files' ? 'active' : ''} onClick={() => setRightActiveTab('files')}>文件</button>
           <button className={rightActiveTab === 'browser' ? 'active' : ''} onClick={() => setRightActiveTab('browser')}>浏览器</button>

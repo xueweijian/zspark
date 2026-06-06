@@ -8,6 +8,7 @@ import {
   displayThreadPreview,
   fmtBytes,
   fmtDuration,
+  formatThreadTime,
   formatUserInputContent,
   findSharedWorkspaceFileForPath,
   isSharedArtifactPath,
@@ -98,6 +99,17 @@ describe('thread / scope helpers', () => {
   test('scopeLabel maps scopes', () => {
     expect(scopeLabel('repo')).toBe('Project')
     expect(scopeLabel(undefined)).toBe('Skill')
+  })
+  test('formatThreadTime calculates correct relative strings', () => {
+    const now = Date.now()
+    expect(formatThreadTime(undefined)).toBe('')
+    expect(formatThreadTime(now - 1000 * 10)).toBe('刚刚')
+    expect(formatThreadTime(now - 1000 * 60 * 5)).toBe('5分钟前')
+    expect(formatThreadTime(now - 1000 * 60 * 60 * 3)).toBe('3小时前')
+    expect(formatThreadTime(now - 1000 * 60 * 60 * 24 * 4)).toBe('4天前')
+    const fortyDaysAgo = now - 1000 * 60 * 60 * 24 * 40
+    const expectedDate = new Date(fortyDaysAgo)
+    expect(formatThreadTime(fortyDaysAgo)).toBe(`${expectedDate.getMonth() + 1}-${expectedDate.getDate()}`)
   })
 })
 

@@ -2296,7 +2296,7 @@ function DesktopApp() {
           const success = params?.success
           const error = params?.error
           if (success) {
-            toast('success', 'Windows 沙盒配置成功')
+            toast('info', 'Windows 沙盒配置成功')
             refreshRuntimeHost()
           } else {
             toast('error', `Windows 沙盒配置失败: ${error || '未知错误'}`)

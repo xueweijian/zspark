@@ -99,3 +99,10 @@ __pycache__/
 # local Google OAuth creds — never commit
 .env.gmail
 *.env.gmail
+
+# reference projects — never commit
+cc-haha-main
+cc-haha-main.zip
+CodexMonitor-main
+CodexMonitor-main.zip
+

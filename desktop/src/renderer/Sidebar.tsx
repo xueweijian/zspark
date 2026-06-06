@@ -3,7 +3,7 @@ import {
   IconNewChat, IconSearch, IconSkills, IconPlugins, IconAutomations,
   IconProject, IconClose, IconShield
 } from './icons'
-import { displayThreadPreview } from './appHelpers'
+import { displayThreadPreview, formatThreadTime } from './appHelpers'
 import type {
   CollapsedSections,
   WorkspaceInfo,
@@ -80,6 +80,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // 局部状态：记录折叠的项目路径
   const [collapsedPaths, setCollapsedPaths] = useState<Set<string>>(new Set())
+
+  // 局部状态：记录完全展开的项目路径
+  const [expandedPaths, setExpandedPaths] = useState<Set<string>>(new Set())
 
   // 过滤会话列表
   const filteredThreads = useMemo(() => {
@@ -385,63 +388,103 @@ export const Sidebar: React.FC<SidebarProps> = ({
                     </div>
 
                     {/* 项目嵌套会话列表 */}
-                    {!isCollapsed && hasThreads && (
-                      <div className="project-threads-list">
-                        {group.threads.map((threadItem) => {
-                          const isRenaming = renamingId === threadItem.id
-                          const titleText = displayThreadPreview(threadItem)
-                          const isSelected = selectedThreadIds.has(threadItem.id)
+                    {!isCollapsed && hasThreads && (() => {
+                      const LIMIT = 5
+                      const isExpanded = expandedPaths.has(group.path)
+                      let visibleGroupThreads = group.threads
+                      
+                      if (!isExpanded && group.threads.length > LIMIT) {
+                        const sliced = group.threads.slice(0, LIMIT)
+                        const activeIndex = group.threads.findIndex((t) => t.id === activeThreadId)
+                        if (activeIndex >= LIMIT) {
+                          sliced.push(group.threads[activeIndex])
+                        }
+                        visibleGroupThreads = sliced
+                      }
 
-                          return (
+                      return (
+                        <div className="project-threads-list">
+                          {visibleGroupThreads.map((threadItem) => {
+                            const isRenaming = renamingId === threadItem.id
+                            const titleText = displayThreadPreview(threadItem)
+                            const isSelected = selectedThreadIds.has(threadItem.id)
+
+                            return (
+                              <div
+                                key={threadItem.id}
+                                className={`nav-item nav-item-thread nested-thread-item${
+                                  activeThreadId === threadItem.id ? ' active' : ''
+                                }${isSelected ? ' selected' : ''}`}
+                                onClick={() => handleThreadClick(threadItem.id)}
+                                onDoubleClick={(e) => !isBatchMode && startRename(threadItem.id, titleText, e)}
+                              >
+                                {isBatchMode && (
+                                  <input
+                                    type="checkbox"
+                                    className="thread-batch-checkbox"
+                                    checked={isSelected}
+                                    onChange={() => {}} // 由 handleThreadClick 统一处理
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                )}
+
+                                {isRenaming ? (
+                                  <input
+                                    className="thread-rename-input"
+                                    value={renameValue}
+                                    onChange={(e) => setRenameValue(e.target.value)}
+                                    onBlur={handleRenameFinish}
+                                    onKeyDown={handleRenameKeyDown}
+                                    autoFocus
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                ) : (
+                                  <>
+                                    <span className="thread-preview" title={titleText}>{titleText}</span>
+                                    {threadItem.updatedAt && (
+                                      <span className="thread-time">
+                                        {formatThreadTime(threadItem.updatedAt)}
+                                      </span>
+                                    )}
+                                  </>
+                                )}
+
+                                {!isBatchMode && !isRenaming && (
+                                  <button
+                                    className="row-x"
+                                    onClick={(e) => deleteThread(threadItem.id, e)}
+                                    aria-label={t('sidebar.delete')}
+                                    title={t('sidebar.delete')}
+                                  >
+                                    <IconClose />
+                                  </button>
+                                )}
+                              </div>
+                            )
+                          })}
+
+                          {group.threads.length > LIMIT && (
                             <div
-                              key={threadItem.id}
-                              className={`nav-item nav-item-thread nested-thread-item${
-                                activeThreadId === threadItem.id ? ' active' : ''
-                              }${isSelected ? ' selected' : ''}`}
-                              onClick={() => handleThreadClick(threadItem.id)}
-                              onDoubleClick={(e) => !isBatchMode && startRename(threadItem.id, titleText, e)}
+                              className="thread-expand-toggle-btn"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setExpandedPaths((prev) => {
+                                  const next = new Set(prev)
+                                  if (next.has(group.path)) {
+                                    next.delete(group.path)
+                                  } else {
+                                    next.add(group.path)
+                                  }
+                                  return next
+                                })
+                              }}
                             >
-                              {isBatchMode ? (
-                                <input
-                                  type="checkbox"
-                                  className="thread-batch-checkbox"
-                                  checked={isSelected}
-                                  onChange={() => {}} // 由 handleThreadClick 统一处理
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              ) : (
-                                <span className="thread-item-bullet">#</span>
-                              )}
-
-                              {isRenaming ? (
-                                <input
-                                  className="thread-rename-input"
-                                  value={renameValue}
-                                  onChange={(e) => setRenameValue(e.target.value)}
-                                  onBlur={handleRenameFinish}
-                                  onKeyDown={handleRenameKeyDown}
-                                  autoFocus
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              ) : (
-                                <span className="thread-preview" title={titleText}>{titleText}</span>
-                              )}
-
-                              {!isBatchMode && !isRenaming && (
-                                <button
-                                  className="row-x"
-                                  onClick={(e) => deleteThread(threadItem.id, e)}
-                                  aria-label={t('sidebar.delete')}
-                                  title={t('sidebar.delete')}
-                                >
-                                  <IconClose />
-                                </button>
-                              )}
+                              {isExpanded ? '收起会话' : `展开更多 (${group.threads.length - LIMIT})`}
                             </div>
-                          )
-                        })}
-                      </div>
-                    )}
+                          )}
+                        </div>
+                      )
+                    })()}
                   </div>
                 )
               })}

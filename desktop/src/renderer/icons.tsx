@@ -115,16 +115,15 @@ export const IconChevron = () => (
 
 export const IconBrain = () => (
   <Wrap>
-    <path d="M9.5 2A2.5 2.5 0 0 0 7 4.5v15A2.5 2.5 0 0 0 9.5 22h0a2.5 2.5 0 0 0 2.5-2.5V4.5A2.5 2.5 0 0 0 9.5 2z" />
-    <path d="M14.5 2A2.5 2.5 0 0 1 17 4.5v15a2.5 2.5 0 0 1-2.5 2.5h0a2.5 2.5 0 0 1-2.5-2.5V4.5A2.5 2.5 0 0 1 14.5 2z" />
-    <path d="M3 12h4M17 12h4" />
+    <path d="M12 5a3 3 0 1 0-3 3c0 2 3 3 3 6" />
+    <path d="M12 5a3 3 0 1 1 3 3c0 2-3 3-3 6" />
+    <path d="M12 14v4" />
   </Wrap>
 )
 
 export const IconTerminal = () => (
   <Wrap>
-    <path d="m4 8 4 4-4 4M11 16h7" />
-    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="m6 9 4 3-4 3M12 15h6" />
   </Wrap>
 )
 
@@ -145,7 +144,8 @@ export const IconImage = () => (
 
 export const IconTool = () => (
   <Wrap>
-    <path d="M14.7 6.3a4 4 0 0 0-5.4 5.4l-6 6a1 1 0 0 0 1.4 1.4l6-6a4 4 0 0 0 5.4-5.4l-2.7 2.7-2.1-2.1z" />
+    <path d="m21 3-9 9M10 14l-7 7M3 21h4" />
+    <circle cx="16" cy="8" r="4" />
   </Wrap>
 )
 
@@ -175,6 +175,44 @@ export const IconMagic = () => (
     <path d="M3 21h4L19 9l-4-4L3 17Z" />
   </Wrap>
 )
+
+export const IconMenu = () => (
+  <Wrap>
+    <line x1="4" y1="12" x2="20" y2="12" />
+    <line x1="4" y1="6" x2="20" y2="6" />
+    <line x1="4" y1="18" x2="20" y2="18" />
+  </Wrap>
+)
+
+export const IconGitBranch = () => (
+  <Wrap>
+    <line x1="6" y1="3" x2="6" y2="15" />
+    <circle cx="18" cy="6" r="3" />
+    <circle cx="6" cy="18" r="3" />
+    <path d="M18 9a9 9 0 0 1-9 9" />
+  </Wrap>
+)
+
+export const IconMic = () => (
+  <Wrap>
+    <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+    <path d="M19 10v1a7 7 0 0 1-14 0v-1M12 19v3M8 22h8" />
+  </Wrap>
+)
+
+export const IconCursor = () => (
+  <Wrap>
+    <path d="m4 4 7.07 17 2.51-7.39L21 11.07zM17 17l4 4M21 17l-4 4" />
+  </Wrap>
+)
+
+export const IconSplit = () => (
+  <Wrap>
+    <rect x="3" y="3" width="18" height="18" rx="2" />
+    <line x1="12" y1="3" x2="12" y2="21" />
+  </Wrap>
+)
+
 
 
 

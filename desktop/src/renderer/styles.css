@@ -244,10 +244,14 @@ input,textarea,select{font:inherit}
 .empty .card .d{font-size:12px;color:#71717a;line-height:1.45}
 
 /* Input */
-.chat-input-wrap{position:relative;padding:10px max(15%,80px) 24px;background:linear-gradient(to top,#fbfcfd 72%,rgba(251,252,253,0))}
-@media (max-width:1300px){.chat-input-wrap{padding:10px max(8%,40px) 20px}}
+.chat-input-wrap{position:relative;--composer-padding-x: max(15%,80px);padding:10px var(--composer-padding-x) 24px;background:linear-gradient(to top,#fbfcfd 72%,rgba(251,252,253,0))}
+@media (max-width:1300px){.chat-input-wrap{--composer-padding-x: max(8%,40px);padding:10px var(--composer-padding-x) 20px}}
 .chat-input{display:flex;flex-direction:column;gap:9px;background:#fff;border:1px solid #dbe3ee;border-radius:12px;padding:10px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 14px 34px rgba(15,23,42,.1);transition:border-color .12s,box-shadow .12s,background .12s}
-.chat-input:focus-within{border-color:#93c5fd;box-shadow:0 0 0 3px rgba(37,99,235,.08),0 16px 38px rgba(15,23,42,.11)}
+.chat-input:focus-within {
+  transform: translateY(-2px);
+  border-color: rgba(37, 99, 235, 0.45) !important;
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.04), 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
+}
 .chat-input.busy{background:#f8fafc;border-color:#e2e8f0;box-shadow:0 1px 2px rgba(15,23,42,.03)}
 .composer-row{display:flex;gap:8px;align-items:flex-end;width:100%}
 .chat-input textarea{flex:1;border:none;outline:none;resize:none;font-size:14.5px;color:#18181b;background:transparent;max-height:200px;min-height:24px;padding:5px 0;line-height:1.5;min-width:0}
@@ -858,47 +862,8 @@ input,textarea,select{font:inherit}
 }
 .chat-input:focus-within {
   transform: translateY(-2px);
-  border-color: rgba(124, 58, 237, 0.45) !important;
-  box-shadow: 0 10px 30px rgba(124, 58, 237, 0.06), 0 0 0 3px rgba(124, 58, 237, 0.15) !important;
-}
-
-/* 可视化斜杠快捷命令下拉菜单 */
-.slash-commands-menu {
-  position: absolute;
-  bottom: 60px;
-  left: 10px;
-  right: 10px;
-  max-height: 220px;
-  overflow-y: auto;
-  border-radius: 12px;
-  padding: 6px;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  animation: permission-slide-up 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-.slash-command-item {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 8px 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.12s ease;
-}
-.slash-command-item:hover, .slash-command-item.active {
-  background: rgba(124, 58, 237, 0.08) !important;
-}
-.slash-command-item .command-name {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-  font-weight: 700;
-  color: #7c3aed;
-}
-.slash-command-item .command-desc {
-  font-size: 12px;
-  color: #71717a;
+  border-color: rgba(37, 99, 235, 0.45) !important;
+  box-shadow: 0 10px 30px rgba(37, 99, 235, 0.04), 0 0 0 3px rgba(37, 99, 235, 0.12) !important;
 }
 
 /* 计划模式下的气泡规划卡片样式 */
@@ -990,33 +955,6 @@ input,textarea,select{font:inherit}
   align-items: center;
 }
 
-/* 魔法棒按钮 */
-.magic-wand-btn {
-  padding: 0;
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  color: #7c3aed;
-  background: #f5f3ff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.12s ease;
-  flex-shrink: 0;
-  border: 1px solid #ede9fe;
-}
-
-.magic-wand-btn:hover:not(:disabled) {
-  background: #ede9fe;
-  color: #6d28d9;
-  transform: scale(1.05);
-  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
-}
-
-.magic-wand-btn:disabled {
-  opacity: .45;
-  cursor: not-allowed;
-}
 
 /* 状态胶囊组 */
 .chat-status-capsules {
@@ -1147,28 +1085,37 @@ input,textarea,select{font:inherit}
   border-color: #ddd6fe;
 }
 
-/* 技能与命令联想浮窗美化 */
+/* 技能与命令联想浮窗美化 *//* 斜杠命令弹出菜单与技能联想浮窗 */
 .slash-commands-menu,
 .skills-suggestions-menu {
   position: absolute;
-  bottom: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  max-height: 240px;
-  overflow-y: auto;
-  border-radius: 14px;
-  padding: 6px;
+  bottom: calc(100% + 6px);
+  left: var(--composer-padding-x);
+  right: var(--composer-padding-x);
   z-index: 1000;
+  overflow: hidden;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08), 0 2px 8px rgba(15, 23, 42, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(124, 58, 237, 0.2) transparent;
+  max-height: 280px;
 }
 
+.slash-commands-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  gap: 2px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 滚动条美化 */
 .slash-commands-menu::-webkit-scrollbar,
 .skills-suggestions-menu::-webkit-scrollbar {
-  width: 5px;
+  width: 6px;
 }
 .slash-commands-menu::-webkit-scrollbar-track,
 .skills-suggestions-menu::-webkit-scrollbar-track {
@@ -1176,73 +1123,115 @@ input,textarea,select{font:inherit}
 }
 .slash-commands-menu::-webkit-scrollbar-thumb,
 .skills-suggestions-menu::-webkit-scrollbar-thumb {
-  background: rgba(124, 58, 237, 0.2);
+  background: rgba(37, 99, 235, 0.15);
   border-radius: 99px;
 }
 .slash-commands-menu::-webkit-scrollbar-thumb:hover,
 .skills-suggestions-menu::-webkit-scrollbar-thumb:hover {
-  background: rgba(124, 58, 237, 0.45);
+  background: rgba(37, 99, 235, 0.35);
 }
 
 .slash-command-item,
 .skill-suggestion-item {
+  position: relative;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
   gap: 12px;
   padding: 10px 14px;
-  border-radius: 10px;
+  border-radius: 8px;
   cursor: pointer;
   transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.slash-command-item .command-name,
-.skill-suggestion-item .skill-name {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-  font-size: 13.5px;
-  font-weight: 650;
-  color: #7c3aed;
-  min-width: 110px;
-  flex-shrink: 0;
-}
-
-.slash-command-item .command-hint {
-  font-size: 11.5px;
-  color: rgba(124, 58, 237, 0.65);
-  background: rgba(124, 58, 237, 0.06);
-  padding: 1px 6px;
-  border-radius: 4px;
-  margin-right: auto;
-}
-
-.slash-command-item .command-desc,
-.skill-suggestion-item .skill-desc {
-  font-size: 12.5px;
-  color: #52525b;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
-
-.skill-suggestion-item svg {
-  width: 14px;
-  height: 14px;
-  color: #7c3aed;
-  flex-shrink: 0;
-}
-
-.skill-suggestion-item .skill-name {
-  color: #4c1d95;
-  font-family: inherit;
 }
 
 .slash-command-item:hover,
 .slash-command-item.active,
 .skill-suggestion-item:hover,
 .skill-suggestion-item.active {
-  background: rgba(124, 58, 237, 0.08) !important;
-  transform: translateX(2px);
+  background: var(--accent-soft) !important;
+  padding-left: 18px;
+}
+
+.slash-command-item.active::before,
+.skill-suggestion-item.active::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 99px;
+  background: var(--accent);
+}
+
+.slash-command-item .command-name {
+  flex-shrink: 0;
+  min-width: 100px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--accent-strong);
+}
+
+.slash-command-item .command-hint {
+  flex-shrink: 0;
+  font-size: 11px;
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.slash-command-item .command-desc,
+.skill-suggestion-item .skill-desc {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slash-commands-hints {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-soft);
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.slash-commands-hints kbd {
+  display: inline-block;
+  padding: 2px 6px;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  box-shadow: 0 1px 1px rgba(0,0,0,0.03);
+}
+
+.slash-commands-hints span {
+  color: var(--muted);
+}
+
+.skill-suggestion-item svg {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  color: var(--accent);
+}
+
+.skill-suggestion-item .skill-name {
+  flex-shrink: 0;
+  min-width: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
 }
 
 /* Sidebar Additions - 搜索过滤、双击重命名与批量删除 */

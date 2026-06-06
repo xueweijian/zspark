@@ -3678,15 +3678,6 @@ function DesktopApp() {
     }, 0)
   }
 
-  const handleMagicWandClick = () => {
-    setInput('$')
-    setSuggestionType('skill')
-    setSuggestionSelectedIndex(0)
-    setSuggestionQuery('')
-    setTimeout(() => {
-      taRef.current?.focus()
-    }, 0)
-  }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value
@@ -4105,16 +4096,7 @@ function DesktopApp() {
                 >
                   <IconFile />
                 </button>
-                <button
-                  className="magic-wand-btn"
-                  onClick={handleMagicWandClick}
-                  disabled={!ready || composerBusy}
-                  aria-label="Use skills"
-                  title="唤起技能联想 ($)"
-                >
-                  <IconMagic />
-                </button>
-              </div>
+                              </div>
 
               <div className="toolbar-right">
                 <button

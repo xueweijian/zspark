@@ -4141,11 +4141,6 @@ function DesktopApp() {
             </span>
           </div>
           <div className="right">
-            {streaming && (
-              <button className="header-btn danger" onClick={stopTurn} title="Stop" aria-label="Stop">
-                <IconClose />
-              </button>
-            )}
             {activeSharedWorkspace && (
               <button
                 className="header-btn"
@@ -4429,25 +4424,29 @@ function DesktopApp() {
               </div>
 
               <div className="composer-input-actions">
-                {streaming && (
+                {streaming ? (
                   <button
                     className="send-btn stop-mode"
                     onClick={stopTurn}
                     title="Stop"
                     aria-label="Stop"
                   >
-                    <IconClose />
+                    <span className="composer-action-stop-square" />
+                    <span className="composer-action-spinner" />
+                  </button>
+                ) : (
+                  <button
+                    className="send-btn"
+                    onClick={() => submit()}
+                    disabled={!ready || composerBusy || !hasComposerContent}
+                    aria-label="Send"
+                    title="Send"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'translateY(-0.5px)' }}>
+                      <path d="M12 5l6 6m-6-6L6 11m6-6v14" />
+                    </svg>
                   </button>
                 )}
-                <button
-                  className="send-btn"
-                  onClick={() => submit()}
-                  disabled={!ready || composerBusy || !hasComposerContent}
-                  aria-label="Send"
-                  title="Send"
-                >
-                  <IconSend />
-                </button>
               </div>
             </div>
           </div>

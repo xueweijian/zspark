@@ -2921,3 +2921,32 @@ input,textarea,select{font:inherit}
   to { transform: rotate(360deg); }
 }
 
+/* CodexMonitor 风格的停止状态正方形和旋转动画 */
+.composer-action-stop-square {
+  width: 6px !important;
+  height: 6px !important;
+  border-radius: 1px !important;
+  background: #ef4444 !important;
+  display: block !important;
+}
+
+.composer-action-spinner {
+  position: absolute !important;
+  width: 18px !important;
+  height: 18px !important;
+  border-radius: 999px !important;
+  border: 1.5px solid rgba(239, 68, 68, 0.2) !important;
+  border-top-color: rgba(239, 68, 68, 0.85) !important;
+  animation: composer-action-spin 0.8s linear infinite !important;
+}
+
+@keyframes composer-action-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+

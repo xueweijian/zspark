@@ -1847,13 +1847,6 @@ input,textarea,select{font:inherit}
   overflow-y: auto !important;
 }
 
-.act-terminal {
-  background: #1e1e1e !important;
-  color: #cccccc !important;
-  border: 1px solid #333 !important;
-  border-left: 3px solid #666 !important;
-}
-
 /* 4. 底部一体化高集成对话框与极简药丸 */
 .chat-input-wrap {
   position: relative !important;

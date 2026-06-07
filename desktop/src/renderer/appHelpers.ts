@@ -5,8 +5,11 @@ import i18n from './i18n'
  */
 import type {
   Activity,
+  ApprovalKind,
   ApprovalRequest,
   Block,
+  JsonRpcId,
+  RuntimeInfo,
   SharedArtifact,
   SharedSession,
   SharedSessionSnapshot,
@@ -15,6 +18,10 @@ import type {
   TurnInputItem,
   WorkspaceFile
 } from './appTypes'
+import { resolveWorkspacePath, dirname } from './artifacts'
+import { shortPath } from './runtimeDisplay'
+import { inferSkillCategory, isOfficeArtifactGenerationRequest } from './skillCatalog'
+import { commandActivityInfo, cleanShellCommand, publicActivityTitleText, shortenCommand, timestampToMs } from './activityHelpers'
 
 export function fmtDuration(ms: number): string {
   const s = Math.round(ms / 1000)
@@ -418,4 +425,271 @@ export function sharedArtifactFile(workspaceId: string, sessionId: string, artif
       sizeBytes: artifact.size_bytes
     }
   }
+}
+
+export function fmtRelativeTime(timestamp: number): string {
+  const diff = Date.now() - timestamp
+  const seconds = Math.floor(diff / 1000)
+  const minutes = Math.floor(seconds / 60)
+  const hours = Math.floor(minutes / 60)
+  const days = Math.floor(hours / 24)
+  if (seconds < 60) return '刚刚'
+  if (minutes < 60) return `${minutes} 分钟前`
+  if (hours < 24) return `${hours} 小时前`
+  if (days < 7) return `${days} 天前`
+  if (days < 30) return `${Math.floor(days / 7)} 周前`
+  return `${Math.floor(days / 30)} 月前`
+}
+
+export function candidateWorkspacePaths(path: string, runtime: RuntimeInfo) {
+  if (path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path)) return [path]
+  const bases = [runtime.cwd, runtime.workspaceRoot].filter((base): base is string => Boolean(base))
+  const seen = new Set<string>()
+  const paths = bases.length ? bases.map((base) => resolveWorkspacePath(path, base)) : [path]
+  return paths.filter((candidate) => {
+    if (seen.has(candidate)) return false
+    seen.add(candidate)
+    return true
+  })
+}
+
+export function artifactDownloadLabel(path: string) {
+  const ext = basename(path).split('.').pop()?.toUpperCase()
+  return ext ? `Download ${ext}` : 'Download'
+}
+
+export async function scanRecentArtifactCandidates(limit = 48): Promise<Array<{ path: string; name: string; size: number; mtimeMs: number }>> {
+  try {
+    const result = await window.zspark.scanRecentArtifacts({ sinceMs: 0, limit })
+    return result.artifacts ?? []
+  } catch {
+    return []
+  }
+}
+
+export function rpcKey(id: JsonRpcId) {
+  return String(id)
+}
+
+export function userApprovalParams(permissionLevel: string) {
+  const approvalPolicy = (permissionLevel === 'auto' || permissionLevel === 'full') ? 'untrusted' : 'on-request'
+  return { approvalPolicy, approvalsReviewer: 'user' }
+}
+
+export function isApprovalRequest(method: string) {
+  return method === 'item/commandExecution/requestApproval' ||
+    method === 'item/fileChange/requestApproval' ||
+    method === 'item/permissions/requestApproval' ||
+    method === 'execCommandApproval' ||
+    method === 'applyPatchApproval'
+}
+
+export function approvalKindForMethod(method: string): ApprovalKind | null {
+  switch (method) {
+    case 'item/commandExecution/requestApproval': return 'command'
+    case 'execCommandApproval': return 'command'
+    case 'item/fileChange/requestApproval': return 'fileChange'
+    case 'applyPatchApproval': return 'fileChange'
+    case 'item/permissions/requestApproval': return 'permissions'
+    default: return null
+  }
+}
+
+export function uniqueCompact(values: Array<string | undefined | null>) {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const value of values) {
+    const text = String(value ?? '').trim()
+    if (!text || seen.has(text)) continue
+    seen.add(text)
+    out.push(text)
+  }
+  return out
+}
+
+export function pathsFromCommandActions(actions: any[] | null | undefined) {
+  if (!Array.isArray(actions)) return []
+  return uniqueCompact(actions.map((action) => action?.path))
+}
+
+export function permissionPaths(permissions: any) {
+  const fs = permissions?.fileSystem
+  const entryPaths = Array.isArray(fs?.entries)
+    ? fs.entries.map((entry: any) => entry?.path ?? entry?.root)
+    : []
+  return uniqueCompact([
+    ...(Array.isArray(fs?.read) ? fs.read : []),
+    ...(Array.isArray(fs?.write) ? fs.write : []),
+    ...entryPaths
+  ])
+}
+
+export function permissionSummary(permissions: any) {
+  const parts: string[] = []
+  const paths = permissionPaths(permissions)
+  if (paths.length) parts.push(`${paths.length} filesystem path${paths.length === 1 ? '' : 's'}`)
+  if (permissions?.network?.enabled) parts.push('network access')
+  return parts.length ? parts.join(' and ') : 'extra access'
+}
+
+export function approvalRequestFromServer(id: JsonRpcId, method: string, params: any): ApprovalRequest | null {
+  const kind = approvalKindForMethod(method)
+  if (!kind) return null
+  const key = rpcKey(id)
+  const turnId = String(params?.turnId ?? '')
+  const threadId = String(params?.threadId ?? params?.conversationId ?? '')
+  const itemId = String(params?.itemId ?? params?.callId ?? key)
+  const cwd = params?.cwd ? String(params.cwd) : undefined
+  const reason = params?.reason ? String(params.reason) : undefined
+  const startedAt = timestampToMs(params?.startedAtMs, Date.now())
+
+  if (kind === 'command') {
+    const rawCommand = Array.isArray(params?.command) ? params.command.join(' ') : params?.command
+    const info = commandActivityInfo({ command: rawCommand, commandActions: params?.commandActions })
+    const command = rawCommand ? cleanShellCommand(String(rawCommand)) : undefined
+    const paths = pathsFromCommandActions(params?.commandActions)
+    return {
+      id, key, kind, method, threadId, turnId, itemId,
+      blockId: `approval-${key}`,
+      title: publicActivityTitleText(info.title),
+      description: params?.networkApprovalContext
+        ? 'Codex needs network permission before continuing this step.'
+        : 'Codex needs your approval before running this action outside the current sandbox.',
+      detail: paths.length ? `${paths.length} related path${paths.length === 1 ? '' : 's'}` : undefined,
+      commandPreview: command ? shortenCommand(command, 120) : undefined,
+      cwd,
+      reason,
+      paths,
+      params,
+      status: 'pending',
+      startedAt
+    }
+  }
+
+  if (kind === 'fileChange') {
+    const grantRoot = params?.grantRoot ? String(params.grantRoot) : undefined
+    const changedPaths = params?.fileChanges && typeof params.fileChanges === 'object'
+      ? Object.keys(params.fileChanges)
+      : []
+    return {
+      id, key, kind, method, threadId, turnId, itemId,
+      blockId: `approval-${key}`,
+      title: 'Allow file changes',
+      description: 'Codex wants to apply file changes and needs your approval.',
+      detail: grantRoot ? `Requested write root: ${shortPath(grantRoot)}` : undefined,
+      cwd,
+      reason,
+      paths: uniqueCompact([grantRoot, ...changedPaths]),
+      params,
+      status: 'pending',
+      startedAt
+    }
+  }
+
+  const paths = permissionPaths(params?.permissions)
+  return {
+    id, key, kind, method, threadId, turnId, itemId,
+    blockId: `approval-${key}`,
+    title: 'Grant extra access',
+    description: `Codex is asking for ${permissionSummary(params?.permissions)}.`,
+    detail: paths.length ? paths.map(shortPath).join('\n') : undefined,
+    cwd,
+    reason,
+    paths,
+    params,
+    status: 'pending',
+    startedAt
+  }
+}
+
+export function filesFromChanges(changes: any[], base?: string, now = Date.now()): WorkspaceFile[] {
+  return changes.map((change, index) => {
+    const fullPath = resolveWorkspacePath(String(change.path ?? ''), base)
+    const status = changeKindLabel(change.kind)
+    return {
+      id: `chg-${now}-${index}`,
+      name: basename(fullPath),
+      path: fullPath,
+      source: 'change' as const,
+      status,
+      detail: describeChange(change.kind),
+      updatedAt: now
+    }
+  }).filter((file) => file.path)
+}
+
+export function officeRuntimeContext(skills: SkillMeta[], runtime: RuntimeInfo): string[] {
+  if (!skills.some((skill) => inferSkillCategory(skill) === 'office')) return []
+  const rt = runtime.workspaceRuntime
+  if (!rt?.available) {
+    return [
+      [
+        'Zspark local artifact runtime is unavailable for the selected Office skill.',
+        `- Expected Node executable: ${rt?.nodePath ?? 'not reported'}`,
+        `- Expected Node packages: ${rt?.nodeModulesPath ?? 'not reported'}`,
+        '- Do not claim an editable Office artifact was generated.',
+        '- If the user asked to create or edit a PPTX/DOCX/XLSX/PDF artifact, report this runtime blocker instead of inventing an output path.'
+      ].join('\n')
+    ]
+  }
+
+  const presentationSkill = skills.find((skill) => {
+    const text = `${skill.name} ${skill.displayName ?? ''} ${skill.path ?? ''}`
+    return /\b(presentation|presentations|pptx?|powerpoint|slides?)\b/i.test(text)
+  })
+  const presentationSkillDir = dirname(presentationSkill?.path)
+  const pythonRuntimeLine = rt.pythonAvailable
+    ? `- Python executable: ${rt.pythonPath}`
+    : `- Python executable: ${rt.pythonPath} (not found; use Node.js runtime unless a Python-only helper is required)`
+  const lines = [
+    'Zspark local runtime for the selected Office skill:',
+    `- Node.js executable: ${rt.nodePath}`,
+    `- Node.js packages: ${rt.nodeModulesPath}`,
+    pythonRuntimeLine,
+    'Use these bundled Node.js dependencies for presentations and other Node-based artifact helpers. Use Python only when the selected skill/helper requires it.',
+    'Hard delivery contract: create an actual editable artifact file in the workspace. A prose specification is a failure unless a real command fails and you report that command error.',
+    'Before using @oai/artifact-tool from an output work directory, run this preflight pattern:',
+    `  mkdir -p "$WORKSPACE" && cd "$WORKSPACE" && ln -sfn "${rt.nodeModulesPath}" node_modules`,
+    `  "${rt.nodePath}" -e "import('@oai/artifact-tool').then(() => console.log('artifact-tool ok'))"`,
+    'Before the final answer, verify the delivered file with `test -s "$FINAL_ARTIFACT" && ls -lh "$FINAL_ARTIFACT"`. Do not claim success or report a final path until that command succeeds.'
+  ]
+  if (presentationSkillDir) {
+    lines.push(
+      'For PPTX/presentation tasks, use the installed Presentations scripts instead of hand-waving:',
+      `- SKILL_DIR: ${presentationSkillDir}`,
+      `- Build/export helper: "${rt.nodePath}" "${presentationSkillDir}/scripts/build_artifact_deck.mjs" --slides-dir "$SLIDES_DIR" --out "$FINAL_PPTX" --preview-dir "$PREVIEW_DIR" --layout-dir "$LAYOUT_DIR"`,
+      'Artifact-tool compose rules: write plain ESM slide modules, not raw JSX/HTML; `panel` accepts one child; use `row`/`column` with array children; `justify` values are start, center, end, or stretch.',
+      'If the build helper fails, patch the slide source and rerun it until `test -s "$FINAL_PPTX"` passes.',
+      'The final response must include only a PPTX path that exists after the verification command.'
+    )
+  }
+  return [
+    lines.join('\n')
+  ]
+}
+
+export function officeArtifactRuntimeBlocker(text: string, skills: SkillMeta[], runtime: RuntimeInfo): string | null {
+  if (!isOfficeArtifactGenerationRequest(text, skills)) return null
+  const rt = runtime.workspaceRuntime
+  if (rt?.available) return null
+  return [
+    'Artifact runtime is missing, so Zspark cannot create editable Office artifacts on this machine.',
+    `Expected Node: ${rt?.nodePath ?? 'not reported'}`,
+    `Expected packages: ${rt?.nodeModulesPath ?? 'not reported'}`
+  ].join('\n')
+}
+
+export function executionSafetyContext(prompt: string): string[] {
+  const lower = prompt.toLowerCase()
+  const mutatesFiles = /删除|删掉|移到|移动|放到|trash|废纸篓|delete|remove|move|rename|rm\b|mv\b/.test(lower)
+  const targetsExternalPath = /桌面|desktop|downloads|documents|\/users\/|~\/|trash|废纸篓/.test(lower)
+  if (!mutatesFiles || !targetsExternalPath) return []
+  return [
+    [
+      'Zspark execution safety:',
+      '- Do not claim that a file operation completed until command output and a follow-up check prove it.',
+      '- For deleting, moving, trashing, or writing files outside the workspace, call exec_command with sandbox_permissions set to require_escalated and provide a concise justification so Zspark can show Approve/Deny.',
+      '- Use command forms that fail on permission errors; do not mask failures with a later success-looking echo.'
+    ].join('\n')
+  ]
 }

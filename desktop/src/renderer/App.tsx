@@ -1,10 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { marked } from 'marked'
 import { Sidebar } from './Sidebar'
-import { ActivityRow } from './ActivityRow'
-import DOMPurify from 'dompurify'
-
 import { BrowserSurface } from './browser/BrowserSurface'
 import { buildSelectionPrompt } from './browser/selectionComposer'
 
@@ -12,7 +8,7 @@ import {
   IconNewChat, IconSearch, IconSkills, IconPlugins, IconAutomations,
   IconProject, IconSend, IconClose, IconSettings, IconChevron,
   IconBrain, IconTerminal, IconFile, IconImage, IconTool, IconGlobe,
-  IconCopy, IconRegenerate, IconTrash, IconShield, IconMagic, IconCheck
+  IconShield, IconMagic, IconCheck
 } from './icons'
 import {
   filterSkillCatalog,
@@ -23,8 +19,20 @@ import {
   suggestedPromptForAttachments,
   type SkillCategory
 } from './skillCatalog'
-import { normalizeMarkdownForDisplay } from './markdown'
 import { clearDisplayedArtifactRevisions, rememberDisplayedArtifactRevisions, shouldDisplayScannedArtifact } from './artifactDisplay'
+
+import { MessageList } from './components/chat/MessageList'
+import { ChatInput } from './components/chat/ChatInput'
+import { Toasts } from './components/Toasts'
+import { ImageZoomOverlay } from './components/ImageZoomOverlay'
+import { SettingsModal, newMcpDraft, mcpStartupLabels } from './components/SettingsModal'
+import { useChatStore } from './store/chatStore'
+import { useComposerStore } from './store/composerStore'
+import { useUiStore } from './store/uiStore'
+import { fuzzyFilter } from './utils/fuzzyMatch'
+import { saveDraft, loadDraft, clearDraft, cleanupOldDrafts } from './utils/draftPersistence'
+import { throttle } from './utils/throttle'
+import { useRuntimeStore } from './store/runtimeStore'
 import {
   dirname,
   extractArtifactPathCandidates,
@@ -49,9 +57,7 @@ import {
 import { responseForMcpElicitationRequest } from './mcpElicitation'
 import {
   approvalResponsePayload,
-  approvalStatusForDecision,
-  approvalStatusLabel,
-  approvalTopline
+  approvalStatusForDecision
 } from './approvalHelpers'
 import type {
   Activity,
@@ -113,19 +119,30 @@ import {
   shouldAutoToastRpcError
 } from './ipc'
 import {
+  approvalRequestFromServer,
+  artifactDownloadLabel,
   basename,
   blocksFromSharedSnapshot,
+  candidateWorkspacePaths,
   changeKindLabel,
   describeChange,
   displaySkillName,
   displayThreadPreview,
+  executionSafetyContext,
+  filesFromChanges,
   fmtBytes,
   fmtDuration,
+  fmtRelativeTime,
   formatUserInputContent,
   findSharedWorkspaceFileForPath,
+  isApprovalRequest,
   isSharedArtifactPath,
   localSkillSourceLabel,
   normalizeInputItemsForResubmit,
+  officeArtifactRuntimeBlocker,
+  officeRuntimeContext,
+  rpcKey,
+  scanRecentArtifactCandidates,
   scopeLabel,
   sharedArtifactFile,
   sharedArtifactPath,
@@ -135,20 +152,21 @@ import {
   stripInternalPromptContext,
   titleFromBlocks,
   turnIdFromParams,
-  upsertApprovalBlockByTurnOrder
+  uniqueCompact,
+  upsertApprovalBlockByTurnOrder,
+  userApprovalParams
 } from './appHelpers'
 import {
   ACTIVITY_STORAGE_PREFIX,
   actionKindForSummary,
   activityDetailWeight,
-  activitySummaryLabels,
   cleanShellCommand,
   commandActionInfo,
   commandActivityDetail,
   commandActivityInfo,
   deletedArtifactReference,
   deletedArtifactReferenceMatchesCandidate,
-  displayActivities,
+
   type DeletedArtifactReference,
   extractDeletedPathsFromCommand,
   inferActionKindFromTitle,
@@ -239,95 +257,6 @@ const sidebarItems = [
 const USER_APPROVAL_REVIEWER = 'user'
 const MAX_STDOUT_BUFFER_CHARS = 2_000_000
 
-function fmtRelativeTime(timestamp: number): string {
-  const diff = Date.now() - timestamp
-  const seconds = Math.floor(diff / 1000)
-  const minutes = Math.floor(seconds / 60)
-  const hours = Math.floor(minutes / 60)
-  const days = Math.floor(hours / 24)
-  if (seconds < 60) return '刚刚'
-  if (minutes < 60) return `${minutes} 分钟前`
-  if (hours < 24) return `${hours} 小时前`
-  if (days < 7) return `${days} 天前`
-  if (days < 30) return `${Math.floor(days / 7)} 周前`
-  return `${Math.floor(days / 30)} 月前`
-}
-
-function candidateWorkspacePaths(path: string, runtime: RuntimeInfo) {
-  if (path.startsWith('/') || /^[A-Za-z]:[\\/]/.test(path)) return [path]
-  const bases = [runtime.cwd, runtime.workspaceRoot].filter((base): base is string => Boolean(base))
-  const seen = new Set<string>()
-  const paths = bases.length ? bases.map((base) => resolveWorkspacePath(path, base)) : [path]
-  return paths.filter((candidate) => {
-    if (seen.has(candidate)) return false
-    seen.add(candidate)
-    return true
-  })
-}
-
-function ActivityDuration({ startedAt, endedAt }: { startedAt: number; endedAt?: number }) {
-  const [now, setNow] = useState(Date.now())
-  useEffect(() => {
-    if (endedAt) return
-    const timer = window.setInterval(() => setNow(Date.now()), 1000)
-    return () => window.clearInterval(timer)
-  }, [endedAt])
-  return <>{fmtDuration((endedAt ?? now) - startedAt)}</>
-}
-
-marked.setOptions({ gfm: true, breaks: true })
-
-function secureMarkdownLinks(html: string) {
-  return html.replace(/<a\s+([^>]*?)>/gi, (_match, attrs) => {
-    let nextAttrs = String(attrs)
-    if (!/\btarget=/i.test(nextAttrs)) nextAttrs += ' target="_blank"'
-    if (!/\brel=/i.test(nextAttrs)) nextAttrs += ' rel="noopener noreferrer"'
-    return `<a ${nextAttrs}>`
-  })
-}
-
-function Markdown({ text }: { text: string }) {
-  const html = useMemo(() => {
-    const normalized = normalizeMarkdownForDisplay(text || '')
-    const sanitized = DOMPurify.sanitize(marked.parse(normalized, { async: false }) as string, {
-      ADD_ATTR: ['target', 'rel'],
-      // Only allow http(s)/mailto, fragments, and relative paths. The previous
-      // regex was too permissive — anything whose first character was not a–z
-      // (e.g. encoded `%` schemes) slipped through.
-      ALLOWED_URI_REGEXP: /^(?:https?:|mailto:|#|\/|\.{1,2}\/)/i
-    })
-    return secureMarkdownLinks(sanitized)
-  }, [text])
-  const onClick = (event: React.MouseEvent<HTMLDivElement>) => {
-    const link = (event.target as Element | null)?.closest?.('a[href]')
-    const href = link?.getAttribute('href') ?? ''
-    if (!link) return
-    if (!/^(https?:|mailto:)/i.test(href)) {
-      // Block unknown / unsafe schemes (e.g. `javascript:`, `file:`). Safe
-      // schemes (relative URLs, fragments) are left to the browser default.
-      if (href && !/^(?:#|\/|\.{1,2}\/)/.test(href)) event.preventDefault()
-      return
-    }
-    event.preventDefault()
-    void window.zspark.openExternalUrl(href)
-  }
-  return <div className="md" onClick={onClick} onAuxClick={onClick} dangerouslySetInnerHTML={{ __html: html }} />
-}
-
-function artifactDownloadLabel(path: string) {
-  const ext = basename(path).split('.').pop()?.toUpperCase()
-  return ext ? `Download ${ext}` : 'Download'
-}
-
-async function scanRecentArtifactCandidates(limit = 48): Promise<RecentArtifactLike[]> {
-  try {
-    const result = await window.zspark.scanRecentArtifacts({ sinceMs: 0, limit })
-    return result.artifacts ?? []
-  } catch {
-    return []
-  }
-}
-
 function MessageArtifactButtons({
   candidates,
   runtime,
@@ -417,331 +346,9 @@ function MessageArtifactButtons({
   )
 }
 
-function MessageActions({
-  onCopy,
-  onDelete,
-  onRegenerate,
-  disabled,
-  copyDisabled
-}: {
-  onCopy: () => void
-  onDelete: () => void
-  onRegenerate: () => void
-  disabled?: boolean
-  copyDisabled?: boolean
-}) {
-  const [copied, setCopied] = useState(false)
-
-  const handleCopy = () => {
-    onCopy()
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
-  }
-
-  return (
-    <div className="message-actions" aria-label="Message actions">
-      <button
-        className={`message-action${copied ? ' copied' : ''}`}
-        onClick={handleCopy}
-        disabled={copyDisabled || copied}
-        aria-label={copied ? "Copied" : "Copy"}
-        title={copied ? "Copied" : "Copy"}
-        style={copied ? { color: '#10b981', borderColor: '#a7f3d0', backgroundColor: '#ecfdf5' } : undefined}
-      >
-        {copied ? <IconCheck /> : <IconCopy />}
-      </button>
-      <button className="message-action" onClick={onRegenerate} disabled={disabled} aria-label="Regenerate" title="Regenerate">
-        <IconRegenerate />
-      </button>
-      <button className="message-action danger" onClick={onDelete} disabled={disabled} aria-label="Delete" title="Delete">
-        <IconTrash />
-      </button>
-    </div>
-  )
-}
 
 
-function MemoryCitationPill({ citation }: { citation?: MemoryCitation | null }) {
-  if (!citation) return null
-  const detail = memoryCitationDetail(citation)
-  return (
-    <div className="memory-citation" title={detail}>
-      <IconBrain />
-      <span>{memoryCitationTitle(citation)}</span>
-    </div>
-  )
-}
 
-function rpcKey(id: JsonRpcId) {
-  return String(id)
-}
-
-function userApprovalParams(permissionLevel: string) {
-  const approvalPolicy = (permissionLevel === 'auto' || permissionLevel === 'full') ? 'untrusted' : 'on-request'
-  return { approvalPolicy, approvalsReviewer: USER_APPROVAL_REVIEWER }
-}
-
-function isApprovalRequest(method: string) {
-  return method === 'item/commandExecution/requestApproval' ||
-    method === 'item/fileChange/requestApproval' ||
-    method === 'item/permissions/requestApproval' ||
-    method === 'execCommandApproval' ||
-    method === 'applyPatchApproval'
-}
-
-function approvalKindForMethod(method: string): ApprovalKind | null {
-  switch (method) {
-    case 'item/commandExecution/requestApproval': return 'command'
-    case 'execCommandApproval': return 'command'
-    case 'item/fileChange/requestApproval': return 'fileChange'
-    case 'applyPatchApproval': return 'fileChange'
-    case 'item/permissions/requestApproval': return 'permissions'
-    default: return null
-  }
-}
-
-function uniqueCompact(values: Array<string | undefined | null>) {
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const value of values) {
-    const text = String(value ?? '').trim()
-    if (!text || seen.has(text)) continue
-    seen.add(text)
-    out.push(text)
-  }
-  return out
-}
-
-function pathsFromCommandActions(actions: any[] | null | undefined) {
-  if (!Array.isArray(actions)) return []
-  return uniqueCompact(actions.map((action) => action?.path))
-}
-
-function permissionPaths(permissions: any) {
-  const fs = permissions?.fileSystem
-  const entryPaths = Array.isArray(fs?.entries)
-    ? fs.entries.map((entry: any) => entry?.path ?? entry?.root)
-    : []
-  return uniqueCompact([
-    ...(Array.isArray(fs?.read) ? fs.read : []),
-    ...(Array.isArray(fs?.write) ? fs.write : []),
-    ...entryPaths
-  ])
-}
-
-function permissionSummary(permissions: any) {
-  const parts: string[] = []
-  const paths = permissionPaths(permissions)
-  if (paths.length) parts.push(`${paths.length} filesystem path${paths.length === 1 ? '' : 's'}`)
-  if (permissions?.network?.enabled) parts.push('network access')
-  return parts.length ? parts.join(' and ') : 'extra access'
-}
-
-function approvalRequestFromServer(id: JsonRpcId, method: string, params: any): ApprovalRequest | null {
-  const kind = approvalKindForMethod(method)
-  if (!kind) return null
-  const key = rpcKey(id)
-  const turnId = String(params?.turnId ?? '')
-  const threadId = String(params?.threadId ?? params?.conversationId ?? '')
-  const itemId = String(params?.itemId ?? params?.callId ?? key)
-  const cwd = params?.cwd ? String(params.cwd) : undefined
-  const reason = params?.reason ? String(params.reason) : undefined
-  const startedAt = timestampToMs(params?.startedAtMs, Date.now())
-
-  if (kind === 'command') {
-    const rawCommand = Array.isArray(params?.command) ? params.command.join(' ') : params?.command
-    const info = commandActivityInfo({ command: rawCommand, commandActions: params?.commandActions })
-    const command = rawCommand ? cleanShellCommand(String(rawCommand)) : undefined
-    const paths = pathsFromCommandActions(params?.commandActions)
-    return {
-      id, key, kind, method, threadId, turnId, itemId,
-      blockId: `approval-${key}`,
-      title: publicActivityTitleText(info.title),
-      description: params?.networkApprovalContext
-        ? 'Codex needs network permission before continuing this step.'
-        : 'Codex needs your approval before running this action outside the current sandbox.',
-      detail: paths.length ? `${paths.length} related path${paths.length === 1 ? '' : 's'}` : undefined,
-      commandPreview: command ? shortenCommand(command, 120) : undefined,
-      cwd,
-      reason,
-      paths,
-      params,
-      status: 'pending',
-      startedAt
-    }
-  }
-
-  if (kind === 'fileChange') {
-    const grantRoot = params?.grantRoot ? String(params.grantRoot) : undefined
-    const changedPaths = params?.fileChanges && typeof params.fileChanges === 'object'
-      ? Object.keys(params.fileChanges)
-      : []
-    return {
-      id, key, kind, method, threadId, turnId, itemId,
-      blockId: `approval-${key}`,
-      title: 'Allow file changes',
-      description: 'Codex wants to apply file changes and needs your approval.',
-      detail: grantRoot ? `Requested write root: ${shortPath(grantRoot)}` : undefined,
-      cwd,
-      reason,
-      paths: uniqueCompact([grantRoot, ...changedPaths]),
-      params,
-      status: 'pending',
-      startedAt
-    }
-  }
-
-  const paths = permissionPaths(params?.permissions)
-  return {
-    id, key, kind, method, threadId, turnId, itemId,
-    blockId: `approval-${key}`,
-    title: 'Grant extra access',
-    description: `Codex is asking for ${permissionSummary(params?.permissions)}.`,
-    detail: paths.length ? paths.map(shortPath).join('\n') : undefined,
-    cwd,
-    reason,
-    paths,
-    params,
-    status: 'pending',
-    startedAt
-  }
-}
-
-function ApprovalCard({
-  request,
-  onDecision
-}: {
-  request: ApprovalRequest
-  onDecision: (request: ApprovalRequest, mode: ApprovalDecisionMode) => void
-}) {
-  const actionable = request.status === 'pending'
-  const compact = !actionable
-  const approvedAll = request.status === 'approvedAll'
-  return (
-    <div className={`approval-card approval-${request.status}${compact ? ' approval-compact' : ''}`}>
-      <div className="approval-mark"><IconShield /></div>
-      <div className="approval-content">
-        <div className="approval-topline">
-          <span>{approvalTopline(request.status)}</span>
-          <em>{approvalStatusLabel(request.status)}</em>
-        </div>
-        <div className="approval-title">{request.title}</div>
-        {!compact && <div className="approval-desc">{request.description}</div>}
-        {compact && approvedAll && <div className="approval-desc">Future actions in this run can continue without another prompt.</div>}
-        {!compact && (request.reason || request.cwd || request.detail || request.commandPreview || request.paths.length > 0) && (
-          <div className="approval-meta">
-            {request.reason && <div><strong>Reason</strong><span>{request.reason}</span></div>}
-            {request.cwd && <div><strong>Working folder</strong><span title={request.cwd}>{shortPath(request.cwd)}</span></div>}
-            {request.detail && <div><strong>Details</strong><span>{request.detail}</span></div>}
-            {request.paths.slice(0, 4).map((path) => (
-              <div key={path}><strong>Path</strong><span title={path}>{shortPath(path)}</span></div>
-            ))}
-            {request.commandPreview && <div className="approval-command"><strong>Command</strong><span>{request.commandPreview}</span></div>}
-          </div>
-        )}
-        {actionable && (
-          <div className="approval-actions">
-            <button className="approval-approve" onClick={() => onDecision(request, 'approve')}>Approve</button>
-            <button className="approval-approve-all" onClick={() => onDecision(request, 'approveAll')}>Approve all</button>
-            <button className="approval-deny" onClick={() => onDecision(request, 'deny')}>Deny</button>
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function filesFromChanges(changes: any[], base?: string, now = Date.now()): WorkspaceFile[] {
-  return changes.map((change, index) => {
-    const fullPath = resolveWorkspacePath(String(change.path ?? ''), base)
-    const status = changeKindLabel(change.kind)
-    return {
-      id: `chg-${now}-${index}`,
-      name: basename(fullPath),
-      path: fullPath,
-      source: 'change' as const,
-      status,
-      detail: describeChange(change.kind),
-      updatedAt: now
-    }
-  }).filter((file) => file.path)
-}
-
-function officeRuntimeContext(skills: SkillMeta[], runtime: RuntimeInfo): string[] {
-  if (!skills.some((skill) => inferSkillCategory(skill) === 'office')) return []
-  const rt = runtime.workspaceRuntime
-  if (!rt?.available) {
-    return [
-      [
-        'Zspark local artifact runtime is unavailable for the selected Office skill.',
-        `- Expected Node executable: ${rt?.nodePath ?? 'not reported'}`,
-        `- Expected Node packages: ${rt?.nodeModulesPath ?? 'not reported'}`,
-        '- Do not claim an editable Office artifact was generated.',
-        '- If the user asked to create or edit a PPTX/DOCX/XLSX/PDF artifact, report this runtime blocker instead of inventing an output path.'
-      ].join('\n')
-    ]
-  }
-
-  const presentationSkill = skills.find((skill) => {
-    const text = `${skill.name} ${skill.displayName ?? ''} ${skill.path ?? ''}`
-    return /\b(presentation|presentations|pptx?|powerpoint|slides?)\b/i.test(text)
-  })
-  const presentationSkillDir = dirname(presentationSkill?.path)
-  const pythonRuntimeLine = rt.pythonAvailable
-    ? `- Python executable: ${rt.pythonPath}`
-    : `- Python executable: ${rt.pythonPath} (not found; use Node.js runtime unless a Python-only helper is required)`
-  const lines = [
-    'Zspark local runtime for the selected Office skill:',
-    `- Node.js executable: ${rt.nodePath}`,
-    `- Node.js packages: ${rt.nodeModulesPath}`,
-    pythonRuntimeLine,
-    'Use these bundled Node.js dependencies for presentations and other Node-based artifact helpers. Use Python only when the selected skill/helper requires it.',
-    'Hard delivery contract: create an actual editable artifact file in the workspace. A prose specification is a failure unless a real command fails and you report that command error.',
-    'Before using @oai/artifact-tool from an output work directory, run this preflight pattern:',
-    `  mkdir -p "$WORKSPACE" && cd "$WORKSPACE" && ln -sfn "${rt.nodeModulesPath}" node_modules`,
-    `  "${rt.nodePath}" -e "import('@oai/artifact-tool').then(() => console.log('artifact-tool ok'))"`,
-    'Before the final answer, verify the delivered file with `test -s "$FINAL_ARTIFACT" && ls -lh "$FINAL_ARTIFACT"`. Do not claim success or report a final path until that command succeeds.'
-  ]
-  if (presentationSkillDir) {
-    lines.push(
-      'For PPTX/presentation tasks, use the installed Presentations scripts instead of hand-waving:',
-      `- SKILL_DIR: ${presentationSkillDir}`,
-      `- Build/export helper: "${rt.nodePath}" "${presentationSkillDir}/scripts/build_artifact_deck.mjs" --slides-dir "$SLIDES_DIR" --out "$FINAL_PPTX" --preview-dir "$PREVIEW_DIR" --layout-dir "$LAYOUT_DIR"`,
-      'Artifact-tool compose rules: write plain ESM slide modules, not raw JSX/HTML; `panel` accepts one child; use `row`/`column` with array children; `justify` values are start, center, end, or stretch.',
-      'If the build helper fails, patch the slide source and rerun it until `test -s "$FINAL_PPTX"` passes.',
-      'The final response must include only a PPTX path that exists after the verification command.'
-    )
-  }
-  return [
-    lines.join('\n')
-  ]
-}
-
-function officeArtifactRuntimeBlocker(text: string, skills: SkillMeta[], runtime: RuntimeInfo): string | null {
-  if (!isOfficeArtifactGenerationRequest(text, skills)) return null
-  const rt = runtime.workspaceRuntime
-  if (rt?.available) return null
-  return [
-    'Artifact runtime is missing, so Zspark cannot create editable Office artifacts on this machine.',
-    `Expected Node: ${rt?.nodePath ?? 'not reported'}`,
-    `Expected packages: ${rt?.nodeModulesPath ?? 'not reported'}`
-  ].join('\n')
-}
-
-function executionSafetyContext(prompt: string): string[] {
-  const lower = prompt.toLowerCase()
-  const mutatesFiles = /删除|删掉|移到|移动|放到|trash|废纸篓|delete|remove|move|rename|rm\b|mv\b/.test(lower)
-  const targetsExternalPath = /桌面|desktop|downloads|documents|\/users\/|~\/|trash|废纸篓/.test(lower)
-  if (!mutatesFiles || !targetsExternalPath) return []
-  return [
-    [
-      'Zspark execution safety:',
-      '- Do not claim that a file operation completed until command output and a follow-up check prove it.',
-      '- For deleting, moving, trashing, or writing files outside the workspace, call exec_command with sandbox_permissions set to require_escalated and provide a concise justification so Zspark can show Approve/Deny.',
-      '- Use command forms that fail on permission errors; do not mask failures with a later success-looking echo.'
-    ].join('\n')
-  ]
-}
 
 function blocksFromThreadTurns(turns: any[], base?: string): { blocks: Block[]; files: WorkspaceFile[] } {
   const blocks: Block[] = []
@@ -831,234 +438,10 @@ function actIcon(k: ActivityKind) {
   }
 }
 
-function newMcpDraft(): McpServerView {
-  return {
-    id: `mcp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
-    name: '',
-    command: '',
-    args: [],
-    env: {},
-    enabled: true
-  }
-}
+// McpServersEditor and SettingsModal extracted to ./components/SettingsModal.tsx
 
-const mcpStartupLabels: Record<string, string> = {
-  starting: 'mcp.status.starting',
-  ready: 'mcp.status.ready',
-  failed: 'mcp.status.failed',
-  cancelled: 'mcp.status.stopped'
-}
 
-function McpServersEditor({
-  servers,
-  mcpStartup,
-  onChange
-}: {
-  servers: McpServerView[]
-  mcpStartup: Record<string, McpServerStartupView>
-  onChange: (next: McpServerView[]) => void
-}) {
-  const { t } = useTranslation()
-  const [editing, setEditing] = useState<string | null>(null)
-  const updateAt = (id: string, patch: Partial<McpServerView>) => {
-    onChange(servers.map((s) => (s.id === id ? { ...s, ...patch } : s)))
-  }
-  const remove = (id: string) => onChange(servers.filter((s) => s.id !== id))
-  const add = () => {
-    const draft = newMcpDraft()
-    onChange([...servers, draft])
-    setEditing(draft.id)
-  }
-  return (
-    <div className="mcp-list">
-      {servers.length === 0 && <p className="modal-hint">No MCP servers configured yet. Add one to expose extra tools to the assistant.</p>}
-      {servers.map((server) => {
-        const open = editing === server.id
-        const startup = server.name ? mcpStartup[server.name] : undefined
-        return (
-          <div key={server.id} className="mcp-row">
-            <div className="mcp-row-head">
-              <label className="mcp-toggle">
-                <input
-                  type="checkbox"
-                  checked={server.enabled}
-                  onChange={(e) => updateAt(server.id, { enabled: e.target.checked })}
-                />
-                <span className="mcp-server-name">{server.name || '(unnamed)'}</span>
-                {startup && (
-                  <span className={`mcp-status ${startup.status}`}>
-                    {mcpStartupLabels[startup.status] ?? startup.status}
-                  </span>
-                )}
-              </label>
-              <div className="mcp-row-actions">
-                <button className="ghost" onClick={() => setEditing(open ? null : server.id)}>{open ? 'Done' : 'Edit'}</button>
-                <button className="ghost" onClick={() => setEditing(open ? null : server.id)}>{open ? t('mcp.done') : t('mcp.edit')}</button>
-                <button className="ghost" onClick={() => remove(server.id)}>{t('mcp.delete')}</button>
-              </div>
-            </div>
-            {startup?.error && <div className="mcp-error" role="status">{startup.error}</div>}
-            {open && (
-              <div className="mcp-row-body">
-                <label>Name<input value={server.name} onChange={(e) => updateAt(server.id, { name: e.target.value })} placeholder="gmail" /></label>
-                <label>{t('mcp.name')}<input value={server.name} onChange={(e) => updateAt(server.id, { name: e.target.value })} placeholder={t('mcp.namePlaceholder')} /></label>
-                <label>{t('mcp.command')}<input value={server.command} onChange={(e) => updateAt(server.id, { command: e.target.value })} placeholder={t('mcp.commandPlaceholder')} /></label>
-                <label>{t('mcp.args')}
-                  <textarea
-                    rows={3}
-                    value={server.args.join('\n')}
-                    onChange={(e) => updateAt(server.id, { args: e.target.value.split('\n').map((s) => s.trim()).filter((s) => s.length > 0) })}
-                  />
-                </label>
-                <label>Env (KEY=VALUE per line)
-                  <textarea
-                    rows={3}
-                    value={Object.entries(server.env).map(([k, v]) => `${k}=${v}`).join('\n')}
-                    onChange={(e) => {
-                      const env: Record<string, string> = {}
-                      for (const line of e.target.value.split('\n')) {
-                        const idx = line.indexOf('=')
-                        if (idx <= 0) continue
-                        const k = line.slice(0, idx).trim()
-                        const v = line.slice(idx + 1)
-                        if (k) env[k] = v
-                      }
-                      updateAt(server.id, { env })
-                    }}
-                  />
-                </label>
-              </div>
-            )}
-          </div>
-        )
-      })}
-      <button className="ghost mcp-add" onClick={add}>+ Add MCP server</button>
-    </div>
-  )
-}
 
-function SettingsModal({
-  mcpStartup,
-  currentWorkspacePath,
-  onPickWorkspace,
-  workspaceBusy,
-  onClose
-}: {
-  mcpStartup: Record<string, McpServerStartupView>
-  currentWorkspacePath: string
-  onPickWorkspace: () => void
-  workspaceBusy: boolean
-  onClose: () => void
-}) {
-  const { t, i18n: settingsI18n } = useTranslation()
-  const [form, setForm] = useState<ProviderForm>({ baseUrl: 'https://api.openai.com/v1', apiKey: '', model: 'gpt-4o-mini', wireApi: 'responses' })
-  const [enterprise, setEnterprise] = useState<EnterpriseForm>({
-    serverUrl: '',
-    tenantId: '',
-    clientId: '',
-    apiScope: '',
-    authority: ''
-  })
-  const [mcpServers, setMcpServers] = useState<McpServerView[]>([])
-  const [saving, setSaving] = useState(false)
-  const [warnings, setWarnings] = useState<string[]>([])
-  const handlePickWorkspace = async () => {
-    onPickWorkspace()
-  }
-  useEffect(() => {
-    window.zspark.getSettings().then((s) => {
-      if (s.provider) setForm((p) => ({ ...p, ...s.provider }))
-      if (s.enterprise) setEnterprise((p) => ({ ...p, ...s.enterprise }))
-      if (s.mcpServers) setMcpServers(s.mcpServers)
-      setWarnings(s.warnings ?? [])
-    })
-  }, [])
-  const save = async () => {
-    setSaving(true)
-    const result = await window.zspark.saveSettings({ provider: form, enterprise, mcpServers })
-    setWarnings(result.warnings ?? [])
-    setSaving(false)
-    if (!result.ok) {
-      setWarnings([result.error ?? 'Settings could not be saved', ...(result.warnings ?? [])])
-      return
-    }
-    onClose()
-  }
-  return (
-    <div className="modal-bg">
-      <div className="modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head">
-          <h2>Settings</h2>
-          <button className="modal-x" onClick={onClose} aria-label={t('common.close')}><IconClose /></button>
-        </div>
-        <div style={{ marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8, padding: '0 4px' }}>
-          <label style={{ fontSize: 13, color: 'var(--muted-strong)' }}>{t('settings.language')}</label>
-          <select
-            value={settingsI18n.language}
-            onChange={(e) => settingsI18n.changeLanguage(e.target.value)}
-            style={{ fontSize: 13, padding: '2px 6px', borderRadius: 4, border: '1px solid var(--border)' }}
-          >
-            <option value="zh-CN">简体中文</option>
-            <option value="en">English</option>
-          </select>
-        </div>
-        <div className="settings-group">
-          <div>
-            <h3>{t('workspace.local')}</h3>
-            <p className="modal-hint">{t('workspace.current')}</p>
-          </div>
-          <div className="settings-workspace-current">
-            <input value={currentWorkspacePath} readOnly />
-            <button onClick={handlePickWorkspace} disabled={workspaceBusy}>{workspaceBusy ? '...' : t('workspace.selectDirectory')}</button>
-          </div>
-        </div>
-        <div className="settings-group">
-          <div>
-            <h3>{t('settings.modelProvider')}</h3>
-            <p className="modal-hint">{t('settings.modelProviderHint')}</p>
-          </div>
-          <label>{t('settings.baseUrl')}<input value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} /></label>
-          <label>{t('settings.apiKey')}<input type="password" value={form.apiKey} onChange={(e) => setForm({ ...form, apiKey: e.target.value })} placeholder={t('settings.apiKeyPlaceholder')} /></label>
-          <label>{t('settings.model')}<input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })} /></label>
-          <label>{t('settings.wireApi')}
-            <select value={form.wireApi} onChange={(e) => setForm({ ...form, wireApi: e.target.value as any })}>
-              <option value="responses">Responses API</option>
-              <option value="chat">{t('settings.wireApiChat')}</option>
-            </select>
-          </label>
-          {warnings.length > 0 && (
-            <div className="settings-warning" role="alert">
-              {warnings.map((warning) => <div key={warning}>{warning}</div>)}
-            </div>
-          )}
-        </div>
-        <div className="settings-group">
-          <div>
-            <h3>MCP servers</h3>
-            <p className="modal-hint">{t('settings.mcpHint')}</p>
-          </div>
-          <McpServersEditor servers={mcpServers} mcpStartup={mcpStartup} onChange={setMcpServers} />
-        </div>
-        <div className="settings-group">
-          <div>
-            <h3>Shared workspaces</h3>
-            <p className="modal-hint">{t('settings.entraHint')}</p>
-          </div>
-          <label>Server URL<input value={enterprise.serverUrl} onChange={(e) => setEnterprise({ ...enterprise, serverUrl: e.target.value })} placeholder="https://zspark.your-corp.cn" /></label>
-          <label>{t('settings.serverUrl')}<input value={enterprise.serverUrl} onChange={(e) => setEnterprise({ ...enterprise, serverUrl: e.target.value })} placeholder={t('settings.serverUrlPlaceholder')} /></label>
-          <label>{t('settings.tenantId')}<input value={enterprise.tenantId} onChange={(e) => setEnterprise({ ...enterprise, tenantId: e.target.value })} /></label>
-          <label>{t('settings.clientId')}<input value={enterprise.clientId} onChange={(e) => setEnterprise({ ...enterprise, clientId: e.target.value })} /></label>
-          <label>{t('settings.apiScope')}<input value={enterprise.apiScope} onChange={(e) => setEnterprise({ ...enterprise, apiScope: e.target.value })} /></label>
-          <label>{t('settings.authority')}<input value={enterprise.authority} onChange={(e) => setEnterprise({ ...enterprise, authority: e.target.value })} /></label>
-        </div>
-        <div className="modal-actions">
-          <button className="ghost" onClick={onClose}>{t('common.cancel')}</button>
-          <button onClick={save} disabled={saving || !form.apiKey || !form.baseUrl || !form.model}>{saving ? t('settings.saving') : t('settings.saveRestart')}</button>
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function Drawer({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return (
@@ -1093,30 +476,51 @@ export function App() {
 
 function DesktopApp() {
   const { t, i18n } = useTranslation()
-  const [blocks, setBlocks] = useState<Block[]>([])
-  const [permissionLevel, setPermissionLevel] = useState<'default' | 'auto' | 'full'>('default')
-  const [showPermissionMenu, setShowPermissionMenu] = useState(false)
-  const [toasts, setToasts] = useState<Toast[]>([])
-  const [input, setInput] = useState('')
-  const [thread, setThread] = useState<string | null>(null)
-  const [ready, setReady] = useState(false)
-  const [streaming, setStreaming] = useState(false)
-  const [submitting, setSubmitting] = useState(false)
-  const [messageActionBusy, setMessageActionBusy] = useState(false)
-  const [showJumpToLatest, setShowJumpToLatest] = useState(false)
-  const [showSettings, setShowSettings] = useState(false)
-  const [panel, setPanel] = useState<Panel>(null)
-  const [threads, setThreads] = useState<ThreadSummary[]>([])
+
+  // --- Store hooks ---
+  const {
+    blocks, setBlocks,
+    streaming, setStreaming,
+    submitting, setSubmitting,
+    messageActionBusy, setMessageActionBusy
+  } = useChatStore()
+  const {
+    input, setInput,
+    attachments, setAttachments,
+    selectedSkills, setSelectedSkills,
+    suggestionType, setSuggestionType,
+    suggestionQuery, setSuggestionQuery,
+    suggestionSelectedIndex, setSuggestionSelectedIndex,
+    loadedPreviews, setLoadedPreviews,
+    zoomedImage, setZoomedImage,
+    dynamicSlashCommands, setDynamicSlashCommands
+  } = useComposerStore()
+  const {
+    panel, setPanel,
+    showSettings, setShowSettings,
+    toasts, setToasts,
+    showPermissionMenu, setShowPermissionMenu,
+    showJumpToLatest, setShowJumpToLatest,
+    rightActiveTab, setRightActiveTab,
+    rightWidth, setRightWidth
+  } = useUiStore()
+  const {
+    thread, setThread,
+    ready, setReady,
+    runtime, setRuntime,
+    tokenUsage, setTokenUsage,
+    permissionLevel, setPermissionLevel,
+    threads, setThreads,
+    workspaceFiles, setWorkspaceFiles,
+    upsertWorkspaceFiles: storeUpsertWorkspaceFiles
+  } = useRuntimeStore()
+
+  // --- Local state (not yet migrated to stores) ---
   const [skills, setSkills] = useState<SkillMeta[]>([])
   const [localSkills, setLocalSkills] = useState<LocalSkillMeta[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [skillQuery, setSkillQuery] = useState('')
   const [skillCategory, setSkillCategory] = useState<SkillCategory>('work')
-  const [attachments, setAttachments] = useState<AttachmentMeta[]>([])
-  const [selectedSkills, setSelectedSkills] = useState<SkillMeta[]>([])
-  const [workspaceFiles, setWorkspaceFiles] = useState<WorkspaceFile[]>([])
-  const [runtime, setRuntime] = useState<RuntimeInfo>({})
-  const [tokenUsage, setTokenUsage] = useState<any>(null)
   const [enterprise, setEnterprise] = useState<EnterpriseStatus | null>(null)
   const [enterpriseDeviceCode, setEnterpriseDeviceCode] = useState<EnterpriseDeviceCode | null>(null)
   const [enterpriseBusy, setEnterpriseBusy] = useState(false)
@@ -1129,15 +533,6 @@ function DesktopApp() {
   const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceInfo[]>([])
   const [workspaceBusy, setWorkspaceBusy] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<CollapsedSections>({ localWorkspaces: false, sharedWorkspaces: true, recent: false })
-  const [suggestionType, setSuggestionType] = useState<'none' | 'slash' | 'skill'>('none')
-  const [loadedPreviews, setLoadedPreviews] = useState<Record<string, string>>({})
-  const [zoomedImage, setZoomedImage] = useState<AttachmentMeta | null>(null)
-  const [suggestionSelectedIndex, setSuggestionSelectedIndex] = useState(0)
-  const [suggestionQuery, setSuggestionQuery] = useState('')
-  const [dynamicSlashCommands, setDynamicSlashCommands] = useState<any[]>([])
-
-  const [rightActiveTab, setRightActiveTab] = useState<'files' | 'browser'>('files')
-  const [rightWidth, setRightWidth] = useState(300)
 
   const handleRightResizeMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -1249,11 +644,7 @@ function DesktopApp() {
 
   const filteredSlashCommands = useMemo(() => {
     if (suggestionType === 'slash') {
-      const query = suggestionQuery.toLowerCase()
-      return dynamicSlashCommands.filter((cmd) => {
-        if (!cmd || typeof cmd.command !== 'string') return false
-        return cmd.command.toLowerCase().includes(query)
-      })
+      return fuzzyFilter(suggestionQuery, dynamicSlashCommands, (cmd) => cmd?.command ?? '')
     }
     return []
   }, [suggestionQuery, suggestionType, dynamicSlashCommands])
@@ -1360,6 +751,9 @@ function DesktopApp() {
     }
     setLoadedPreviews({})
     setInput('')
+    // Clear draft for current thread
+    const currentThread = threadRef.current
+    if (currentThread) clearDraft(currentThread)
   }
   const updateStreamScrollState = () => {
     if (programmaticScroll.current) return
@@ -2129,6 +1523,20 @@ function DesktopApp() {
     // Also link the turn block to this agent block as its final message.
     updateTurn(turnId, (t) => (t.finalMessageId ? t : { ...t, finalMessageId: blockId }))
   }
+  
+  // Throttled versions for streaming updates (50ms)
+  const throttledAppendActivityDetail = useRef(
+    throttle((turnId: string, itemId: string, delta: string) => {
+      appendActivityDetail(turnId, itemId, delta)
+    }, 50)
+  ).current
+  
+  const throttledAppendAgentText = useRef(
+    throttle((turnId: string, blockId: string, delta: string) => {
+      appendAgentText(turnId, blockId, delta)
+    }, 50)
+  ).current
+  
   const recordCommandFailure = (turnId: string, failure: CommandFailureSignal) => {
     commandFailuresByTurn.current.set(turnId, failure)
     const notice = commandFailureNotice(failure)
@@ -2294,6 +1702,9 @@ function DesktopApp() {
   const releaseTurnLocally = (turnId: string, detail: string) => {
     const active = currentTurn.current
     if (!active || active.turnId !== turnId) return
+    // Flush throttled updates before ending stream
+    throttledAppendActivityDetail.flush()
+    throttledAppendAgentText.flush()
     submitInFlight.current = false
     setSubmitting(false)
     setStreaming(false)
@@ -2378,7 +1789,7 @@ function DesktopApp() {
     updateActivity(turnId, actId, {
       title: 'Provider reconnecting'
     })
-    appendActivityDetail(turnId, itemId, 'Provider is reconnecting after completed work. zspark will stop the stalled final response if it does not recover shortly.\n')
+    throttledAppendActivityDetail(turnId, itemId, 'Provider is reconnecting after completed work. zspark will stop the stalled final response if it does not recover shortly.\n')
     const timer = window.setTimeout(() => {
       providerRetryTimers.current.delete(turnId)
       interruptProviderRetryTurn(
@@ -2401,7 +1812,18 @@ function DesktopApp() {
     const lastUser = [...blocks].reverse().find((b): b is Extract<Block, { type: 'user' }> => b.type === 'user')
     if (lastUser?.text.trim() === input.trim()) clearComposerText()
   }, [blocks])
-  useEffect(() => { refreshRuntimeHost() }, [])
+  useEffect(() => { refreshRuntimeHost(); cleanupOldDrafts() }, [])
+  
+    // Load draft when thread changes
+    useEffect(() => {
+      if (thread && !input) {
+        const draft = loadDraft(thread)
+        if (draft) {
+          setInput(draft)
+          inputRef.current = draft
+        }
+      }
+    }, [thread])
 
   useEffect(() => {
     function handle(method: string, params: any) {
@@ -2458,6 +1880,9 @@ function DesktopApp() {
           return
         }
         case 'turn/completed': {
+          // Flush throttled updates before ending stream
+          throttledAppendActivityDetail.flush()
+          throttledAppendAgentText.flush()
           submitInFlight.current = false
           setSubmitting(false)
           setStreaming(false)
@@ -2482,6 +1907,9 @@ function DesktopApp() {
           const statusType = params?.status?.type
           if (!statusType || statusType === 'active') return
           const cur = currentTurn.current
+          // Flush throttled updates before ending stream
+          throttledAppendActivityDetail.flush()
+          throttledAppendAgentText.flush()
           submitInFlight.current = false
           setSubmitting(false)
           setStreaming(false)
@@ -2545,11 +1973,14 @@ function DesktopApp() {
             if (cur) {
               const itemId = `provider-retry-${cur.turnId}`
               ensureActivity(cur.turnId, itemId, { kind: 'tool', title: 'Provider reconnecting', actionKind: 'tool' })
-              appendActivityDetail(cur.turnId, itemId, `${msg}\n`)
+              throttledAppendActivityDetail(cur.turnId, itemId, `${msg}\n`)
               scheduleProviderRetryRecovery(cur.turnId)
             }
             return
           }
+          // Flush throttled updates before ending stream
+          throttledAppendActivityDetail.flush()
+          throttledAppendAgentText.flush()
           submitInFlight.current = false
           setSubmitting(false)
           setStreaming(false)
@@ -2580,7 +2011,7 @@ function DesktopApp() {
             agentForTurn.current.set(turnId, agentBlockId)
             setBlocks((bs) => [...bs, { type: 'agent', id: agentBlockId!, text: '', turnId }])
           }
-          appendAgentText(turnId, agentBlockId, params.delta ?? '')
+          throttledAppendAgentText(turnId, agentBlockId, params.delta ?? '')
           return
         }
         case 'item/reasoning/summaryTextDelta':
@@ -2594,7 +2025,7 @@ function DesktopApp() {
           if (!itemActivity.current.has(placeholderId)) {
             ensureActivity(turnId, placeholderId, { kind: 'reasoning', title: 'Thinking' })
           }
-          appendActivityDetail(turnId, placeholderId, params.delta ?? '')
+          throttledAppendActivityDetail(turnId, placeholderId, params.delta ?? '')
           return
         }
         case 'item/commandExecution/outputDelta': {
@@ -2605,7 +2036,7 @@ function DesktopApp() {
           if (!itemActivity.current.has(itemId)) {
             ensureActivity(turnId, itemId, { kind: 'command', title: 'Command output', actionKind: 'run' })
           }
-          appendActivityDetail(turnId, itemId, params.delta ?? '')
+          throttledAppendActivityDetail(turnId, itemId, params.delta ?? '')
           return
         }
         case 'item/started':
@@ -2670,7 +2101,7 @@ function DesktopApp() {
               if (txt && !itemActivity.current.has(placeholderId)) {
                 ensureActivity(turnId, placeholderId, { kind: 'reasoning', title: 'Thinking' })
               }
-              if (txt) appendActivityDetail(turnId, placeholderId, txt)
+              if (txt) throttledAppendActivityDetail(turnId, placeholderId, txt)
             }
             return
           }
@@ -2820,6 +2251,9 @@ function DesktopApp() {
     const offStderr = window.zspark.onStderr(() => {})
     const offExit = window.zspark.onExit(() => {
       rejectPendingRequests('Codex process exited before replying')
+      // Flush throttled updates before ending stream
+      throttledAppendActivityDetail.flush()
+      throttledAppendAgentText.flush()
       submitInFlight.current = false
       setSubmitting(false)
       setReady(false)
@@ -3318,6 +2752,37 @@ function DesktopApp() {
   }
 
   const removeAttachment = (id: string) => setAttachments((prev) => prev.filter((a) => a.id !== id))
+
+  const handleFilesDropped = async (files: File[]) => {
+    for (const file of files) {
+      try {
+        const reader = new FileReader()
+        reader.onload = async () => {
+          const result = reader.result as string
+          const base64 = result.split(',')[1]
+          if (!base64) return
+          const res = await window.zspark.saveBase64Attachment(base64, file.name || 'dropped-file', file.type || 'application/octet-stream')
+          if (res.attachment) {
+            const att = { ...res.attachment, id: `att-${Date.now()}-${Math.random()}` }
+            setAttachments((prev) => [...prev, att])
+            upsertWorkspaceFiles([{
+              id: `file-${att.id}`,
+              name: att.name,
+              path: att.path,
+              source: 'attachment',
+              status: 'attached',
+              updatedAt: Date.now()
+            }])
+          } else if (res.error) {
+            toast('warn', res.error)
+          }
+        }
+        reader.readAsDataURL(file)
+      } catch (err: any) {
+        toast('error', err?.message ?? String(err))
+      }
+    }
+  }
 
   const useSkill = (skill: SkillMeta) => {
     if (!skill.path) return
@@ -3994,6 +3459,16 @@ function DesktopApp() {
     const val = e.target.value
     setInput(val)
 
+    // Save draft for current thread (debounced via requestIdleCallback)
+    const currentThread = threadRef.current
+    if (currentThread && val.trim()) {
+      if (typeof (window as any).requestIdleCallback === 'function') {
+        (window as any).requestIdleCallback(() => saveDraft(currentThread, val))
+      } else {
+        setTimeout(() => saveDraft(currentThread, val), 300)
+      }
+    }
+
     // 原生调整高度，以实现敲击键盘时零延迟同步升高/缩回
     e.target.style.height = 'auto'
     const scrollHeight = e.target.scrollHeight
@@ -4193,146 +3668,36 @@ function DesktopApp() {
         </div>
 
         <div className="chat-stream" ref={streamRef} onScroll={updateStreamScrollState} onWheel={handleStreamWheel} onTouchMove={() => pauseAutoScroll()}>
-          {blocks.length === 0 ? (
-            <div className="empty">
-              <div className="h">{t('emptyState.heading')}</div>
-              <div className="sub">{t('emptyState.subtitle')}</div>
-              <div className="grid">
-                {[1,2,3,4].map((i) => (
-                  <div className="card" key={i} onClick={() => submit(t(`emptyState.starter${i}Desc`))}>
-                    <div className="t">{t(`emptyState.starter${i}Title`)}</div>
-                    <div className="d">{t(`emptyState.starter${i}Desc`)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : (
-            blocks.map((b) => {
-              if (b.type === 'user') {
-                const visibleText = stripInternalPromptContext(b.text)
-                return (
-                  <div key={b.id} className="message-wrap user">
-                    <div className="bubble user">{visibleText}</div>
-                    <MessageActions
-                      onCopy={() => void copyMessageBlock(b)}
-                      onDelete={() => void deleteMessageBlock(b)}
-                      onRegenerate={() => void regenerateMessageBlock(b)}
-                      disabled={composerBusy || messageActionBusy}
-                      copyDisabled={!visibleText}
-                    />
-                  </div>
-                )
-              }
-              if (b.type === 'agent') {
-                const isStreamingAgent = streaming && b.id === streamingAgentId
-                const artifactCandidates = extractArtifactPathCandidates(b.text)
-                return (
-                  <div key={b.id} className="message-wrap assistant">
-                    <div className={`bubble assistant${isStreamingAgent ? ' streaming' : ''}`}>
-                      <Markdown text={b.text} />
-                      <MemoryCitationPill citation={b.memoryCitation} />
-                      <MessageArtifactButtons
-                        candidates={artifactCandidates}
-                        runtime={runtime}
-                        workspaceFiles={workspaceFiles}
-                        onDownload={downloadArtifactPath}
-                        onOpen={openArtifactPath}
-                      />
-                    </div>
-                    <MessageActions
-                      onCopy={() => void copyMessageBlock(b)}
-                      onDelete={() => void deleteMessageBlock(b)}
-                      onRegenerate={() => void regenerateMessageBlock(b)}
-                      disabled={composerBusy || messageActionBusy || isStreamingAgent}
-                      copyDisabled={!b.text.trim()}
-                    />
-                  </div>
-                )
-              }
-              if (b.type === 'files') {
-                return (
-                  <div key={b.id} className={`artifact-card${b.tone === 'warn' ? ' warn' : ''}`}>
-                    <div className="artifact-head">
-                      <div>
-                        <div className="artifact-title">{b.title}</div>
-                        <div className="artifact-sub">{b.subtitle ?? 'Generated in this turn'}</div>
-                      </div>
-                      <IconFile />
-                    </div>
-                    <div className="artifact-list">
-                      {b.files.map((file) => (
-                        <div className="artifact-row" key={file.path}>
-                          <div className="artifact-file">
-                            <span className={`file-status file-status-${file.status}`}>{file.status}</span>
-                            <button title={file.path} onClick={() => openWorkspaceFile(file)} disabled={file.status === 'missing'}>{file.name}</button>
-                            <small title={file.path}>{file.sharedArtifact ? t('nav.sharedArtifact') : shortPath(file.path)}</small>
-                          </div>
-                          <div className="artifact-actions">
-                            <button className="primary" onClick={() => downloadWorkspaceFile(file)} disabled={file.status === 'missing'}>Download</button>
-                            <button onClick={() => openWorkspaceFile(file)} disabled={file.status === 'missing'}>{file.sharedArtifact ? 'Save' : 'Open'}</button>
-                            <button onClick={() => revealWorkspaceFile(file)} disabled={file.status === 'missing' || Boolean(file.sharedArtifact)}>Reveal</button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )
-              }
-              if (b.type === 'approval') {
-                return (
-                  <ApprovalCard
-                    key={b.id}
-                    request={b.request}
-                    onDecision={(request, mode) => void respondApproval(request, mode)}
-                  />
-                )
-              }
-              const running = !b.endedAt
-              const interrupted = b.status === 'interrupted'
-              const failed = b.status === 'failed' || b.activities.some((a) => a.status === 'failed')
-              const meaningful = b.activities.filter((a) => !(a.kind === 'reasoning' && a.id.startsWith('thinking-') && !a.detail))
-              const summaryLabels = activitySummaryLabels(meaningful)
-              const visibleActivities = displayActivities(b.activities)
-              const stepsLabel = summaryLabels.length
-                ? summaryLabels.slice(0, 2).join(' · ')
-                : meaningful.length === 0
-                ? (running ? 'waiting for activity' : (b.activities.some((a) => a.kind === 'reasoning' && a.detail) ? 'thought captured' : 'no tool activity'))
-                : `${meaningful.length} step${meaningful.length === 1 ? '' : 's'}`
+          <MessageList
+            blocks={blocks}
+            streaming={streaming}
+            streamingAgentId={streamingAgentId ?? null}
+            runtime={runtime}
+            workspaceFiles={workspaceFiles}
+            composerBusy={composerBusy}
+            messageActionBusy={messageActionBusy}
+            onStarterClick={submit}
+            onCopy={(b) => void copyMessageBlock(b as MessageBlock)}
+            onDelete={(b) => void deleteMessageBlock(b as MessageBlock)}
+            onRegenerate={(b) => void regenerateMessageBlock(b as MessageBlock)}
+            onOpenFile={openWorkspaceFile}
+            onDownloadFile={downloadWorkspaceFile}
+            onRevealFile={revealWorkspaceFile}
+            onApprovalDecision={(request, mode) => void respondApproval(request, mode)}
+            onToggleTurn={toggleTurn}
+            renderArtifactButtons={(b) => {
+              const candidates = extractArtifactPathCandidates(b.text)
               return (
-                <div key={b.id} className={`activity-card${b.collapsed ? ' collapsed' : ''}${running ? ' running' : ''}`}>
-                  <div className="activity-head" onClick={() => toggleTurn(b.turnId)}>
-                    <div className="head-left">
-                      <span className={`spinner${running ? ' spin' : ''}${failed ? ' failed' : ''}`} />
-                      <div className="head-copy">
-                        <div className="head-line">
-                          <span className="head-title">{running ? 'Working' : interrupted ? 'Stopped' : failed ? 'Needs attention' : 'Completed'}</span>
-                          <span className="head-meta">Activity log · <ActivityDuration startedAt={b.startedAt} endedAt={b.endedAt} /> · {stepsLabel}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <button className="chev" aria-label="Toggle"><IconChevron /></button>
-                  </div>
-                  {!b.collapsed && (
-                    <div className="activity-body">
-                      {summaryLabels.length > 0 && (
-                        <div className="activity-summary" aria-label="Activity summary">
-                          {summaryLabels.map((label) => <span key={label} className="activity-pill">{label}</span>)}
-                        </div>
-                      )}
-                      {visibleActivities.length === 0 ? (
-                        <div className="empty-act">Preparing…</div>
-                      ) : visibleActivities.map((a) => {
-                        const isPlaceholder = a.kind === 'reasoning' && a.id.startsWith('thinking-') && !a.detail && a.status === 'running'
-                        return (
-                          <ActivityRow key={a.id} activity={a} isPlaceholder={isPlaceholder} />
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
+                <MessageArtifactButtons
+                  candidates={candidates}
+                  runtime={runtime}
+                  workspaceFiles={workspaceFiles}
+                  onDownload={downloadArtifactPath}
+                  onOpen={openArtifactPath}
+                />
               )
-            })
-          )}
+            }}
+          />
         </div>
         {showJumpToLatest && (
           <button className="jump-latest" onClick={() => scrollToLatest()} aria-label="Jump to latest">
@@ -4340,286 +3705,34 @@ function DesktopApp() {
           </button>
         )}
 
-        <div className="chat-input-wrap">
-          {suggestionType === 'slash' && filteredSlashCommands.length > 0 && (
-            <div className="slash-commands-menu glass-morphism">
-              <div className="slash-commands-list">
-                {filteredSlashCommands.map((cmd, idx) => (
-                  <div
-                    key={cmd.command}
-                    className={`slash-command-item ${idx === suggestionSelectedIndex ? 'active' : ''}`}
-                    onClick={() => executeSlashCommand(cmd)}
-                  >
-                    <span className="command-name">/{cmd.command}</span>
-                    {cmd.argumentHint && <span className="command-hint">{t(`slash.${cmd.command}.hint`, { defaultValue: cmd.argumentHint })}</span>}
-                    <span className="command-desc">{t(`slash.${cmd.command}.desc`, { defaultValue: cmd.description })}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {suggestionType === 'skill' && filteredSkills.length > 0 && (
-            <div className="skills-suggestions-menu glass-morphism">
-              <div className="skills-suggestions-list">
-                {filteredSkills.map((skill, idx) => (
-                  <div
-                    key={skill.path ?? skill.name}
-                    className={`skill-suggestion-item ${idx === suggestionSelectedIndex ? 'active' : ''}`}
-                    onClick={() => executeSkillSuggestion(skill)}
-                  >
-                    <IconSkills />
-                    <span className="skill-name">{t(`skill.${skill.name}.name`, { defaultValue: skill.displayName ?? skill.name })}</span>
-                    <span className="skill-desc">{t(`skill.${skill.name}.desc`, { defaultValue: skill.shortDescription ?? skill.description })}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className={`chat-input${composerBusy ? ' busy' : ''}`}>
-            <div className="composer-input-row">
-              <button
-                className="attach-btn"
-                onClick={pickAttachments}
-                disabled={!ready || composerBusy}
-                aria-label="Attach files"
-                title="Attach files"
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="12" y1="5" x2="12" y2="19"></line>
-                  <line x1="5" y1="12" x2="19" y2="12"></line>
-                </svg>
-              </button>
-
-              <div className="composer-input-center">
-                {attachments.filter((a) => a.kind === 'image').length > 0 && (
-                  <div className="composer-image-previews">
-                    {attachments
-                      .filter((a) => a.kind === 'image')
-                      .map((a) => (
-                        <div key={a.id} className="image-preview-card" title={a.name}>
-                          <img
-                            src={a.previewUrl || getAttachmentPreviewUrl(a)}
-                            alt={a.name}
-                            onClick={() => setZoomedImage(a)}
-                          />
-                          <button
-                            className="remove-image-btn"
-                            onClick={() => removeAttachment(a.id)}
-                            aria-label="Remove image"
-                          >
-                            <IconClose />
-                          </button>
-                        </div>
-                      ))}
-                  </div>
-                )}
-
-                <textarea
-                  ref={taRef}
-                  rows={1}
-                  placeholder={composerBusy ? t('composer.busy') : ready ? t('composer.placeholder') : t('composer.connecting')}
-                  value={input}
-                  onChange={handleInputChange}
-                  onKeyDown={onKey}
-                  onPaste={handlePaste}
-                  disabled={!ready || composerBusy}
-                />
-                
-                {(attachments.filter((a) => a.kind !== 'image').length > 0 || selectedSkills.length > 0) && (
-                  <div className="composer-chips">
-                    {selectedSkills.map((s) => (
-                      <div key={s.path ?? s.name} className="composer-chip skill-chip" title={s.path}>
-                        <IconSkills />
-                        <span>{s.displayName ?? s.name}</span>
-                        <button onClick={() => removeSkill(s.path)} aria-label={`Remove ${s.name}`}><IconClose /></button>
-                      </div>
-                    ))}
-                    {attachments
-                      .filter((a) => a.kind !== 'image')
-                      .map((a) => (
-                        <div key={a.id} className="composer-chip" title={a.path}>
-                          <IconFile />
-                          <span>{a.name}</span>
-                          <em>{fmtBytes(a.size)}</em>
-                          <button onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`}><IconClose /></button>
-                        </div>
-                      ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="composer-input-actions">
-                {streaming ? (
-                  <button
-                    className="send-btn stop-mode"
-                    onClick={stopTurn}
-                    title="Stop"
-                    aria-label="Stop"
-                  >
-                    <span className="composer-action-stop-square" />
-                    <span className="composer-action-spinner" />
-                  </button>
-                ) : (
-                  <button
-                    className="send-btn"
-                    onClick={() => submit()}
-                    disabled={!ready || composerBusy || !hasComposerContent}
-                    aria-label="Send"
-                    title="Send"
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ transform: 'translateY(-0.5px)' }}>
-                      <path d="M12 5l6 6m-6-6L6 11m6-6v14" />
-                    </svg>
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="chat-status-capsules">
-            <div className="capsules-left">
-              <div className="model-status-container">
-                <div className="status-capsule model-capsule" title={runtimeProvider ?? ''}>
-                  <span>{runtimeProvider || '—'}</span>
-                  {(() => {
-                    const activeTokenUsage = tokenUsage || {
-                      modelContextWindow: 128000,
-                      total: { totalTokens: 0, inputTokens: 0, outputTokens: 0 }
-                    }
-                    if (activeTokenUsage.modelContextWindow <= 0) return null
-                    const totalTokens = activeTokenUsage.total.totalTokens
-                    const maxTokens = activeTokenUsage.modelContextWindow
-                    const percent = Math.min(100, maxTokens > 0 ? Math.round((totalTokens / maxTokens) * 100) : 0)
-                    return (
-                      <>
-                        <div className="model-context-badge">
-                          <span className="context-ring" style={{
-                            background: `conic-gradient(#4f46e5 ${percent * 3.6}deg, #e2e8f0 0deg)`
-                          }}>
-                            <span className="context-ring-inner"></span>
-                          </span>
-                          <span className="context-percent">{percent}%</span>
-                        </div>
-                        
-                        <div className="context-dropdown-menu glass-morphism">
-                          <div className="context-dropdown-header">
-                            <div className="context-title">上下文使用情况</div>
-                            <div className="context-percent-large">{percent}%</div>
-                          </div>
-                          <div className="context-dropdown-divider"></div>
-                          <div className="context-dropdown-body">
-                            <div className="context-info-row">
-                              <span className="context-info-label">已使用</span>
-                              <span className="context-info-value">{new Intl.NumberFormat().format(totalTokens)}</span>
-                            </div>
-                            <div className="context-info-row">
-                              <span className="context-info-label">剩余</span>
-                              <span className="context-info-value">{new Intl.NumberFormat().format(Math.max(0, maxTokens - totalTokens))}</span>
-                            </div>
-                            <div className="context-info-row">
-                              <span className="context-info-label">总窗口大小</span>
-                              <span className="context-info-value">{new Intl.NumberFormat().format(maxTokens)}</span>
-                            </div>
-                            <div className="context-dropdown-divider"></div>
-                            <div className="context-info-row sub-tokens">
-                              <span className="context-info-label">输入 Tokens (Input)</span>
-                              <span className="context-info-value">{new Intl.NumberFormat().format(activeTokenUsage.total.inputTokens)}</span>
-                            </div>
-                            <div className="context-info-row sub-tokens">
-                              <span className="context-info-label">输出 Tokens (Output)</span>
-                              <span className="context-info-value">{new Intl.NumberFormat().format(activeTokenUsage.total.outputTokens)}</span>
-                            </div>
-                          </div>
-                        </div>
-                      </>
-                    )
-                  })()}
-                </div>
-              </div>
-              
-              <div className="permission-selector-container">
-                <button
-                  className={`status-capsule permission-capsule ${permissionLevel}`}
-                  onClick={() => setShowPermissionMenu(!showPermissionMenu)}
-                  disabled={!ready || composerBusy}
-                  title="点击切换安全与审批权限"
-                >
-                  <IconShield />
-                  <span>{
-                    permissionLevel === 'full' ? t('permission.full') :
-                    permissionLevel === 'auto' ? t('permission.auto') : t('permission.default')
-                  }</span>
-                  <IconChevron />
-                </button>
-                
-                {showPermissionMenu && (
-                  <div className="permission-dropdown-menu">
-                    <button
-                      className={`permission-menu-item ${permissionLevel === 'default' ? 'active' : ''}`}
-                      onClick={() => {
-                        changePermissionLevel('default')
-                        setShowPermissionMenu(false)
-                      }}
-                    >
-                      <span className="dot default"></span>
-                      <div className="menu-text">
-                        <span className="title">{t('permission.default')}</span>
-                        <span className="desc">{t('permission.defaultDesc')}</span>
-                      </div>
-                      {permissionLevel === 'default' && <IconCheck />}
-                    </button>
-                    <button
-                      className={`permission-menu-item ${permissionLevel === 'auto' ? 'active' : ''}`}
-                      onClick={() => {
-                        changePermissionLevel('auto')
-                        setShowPermissionMenu(false)
-                      }}
-                    >
-                      <span className="dot auto"></span>
-                      <div className="menu-text">
-                        <span className="title">{t('permission.auto')}</span>
-                        <span className="desc">{t('permission.autoDesc')}</span>
-                      </div>
-                      {permissionLevel === 'auto' && <IconCheck />}
-                    </button>
-                    <button
-                      className={`permission-menu-item ${permissionLevel === 'full' ? 'active' : ''}`}
-                      onClick={() => {
-                        changePermissionLevel('full')
-                        setShowPermissionMenu(false)
-                      }}
-                    >
-                      <span className="dot full"></span>
-                      <div className="menu-text">
-                        <span className="title">{t('permission.full')}</span>
-                        <span className="desc">{t('permission.fullDesc')}</span>
-                      </div>
-                      {permissionLevel === 'full' && <IconCheck />}
-                    </button>
-
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="capsules-right">
-              {runtime.gitBranch && (
-                <div className="status-capsule git-capsule" title={`Git Branch: ${runtime.gitBranch}`}>
-                  <svg className="git-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="18" cy="18" r="3" />
-                    <circle cx="6" cy="6" r="3" />
-                    <circle cx="6" cy="18" r="3" />
-                    <path d="M18 15V9a4 4 0 0 0-4-4H9" />
-                    <line x1="6" y1="9" x2="6" y2="15" />
-                  </svg>
-                  <span>{runtime.gitBranch}</span>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <ChatInput
+          ready={ready}
+          streaming={streaming}
+          composerBusy={composerBusy}
+          hasComposerContent={hasComposerContent}
+          filteredSlashCommands={filteredSlashCommands}
+          filteredSkills={filteredSkills}
+          runtimeProvider={runtimeProvider}
+          gitBranch={runtime.gitBranch}
+          tokenUsage={tokenUsage}
+          permissionLevel={permissionLevel}
+          showPermissionMenu={showPermissionMenu}
+          taRef={taRef}
+          onSubmit={() => submit()}
+          onStop={stopTurn}
+          onPickAttachments={pickAttachments}
+          onRemoveAttachment={removeAttachment}
+          onRemoveSkill={removeSkill}
+          onInputChange={handleInputChange}
+          onKeyDown={onKey}
+          onPaste={handlePaste}
+          onExecuteSlashCommand={executeSlashCommand}
+          onExecuteSkillSuggestion={executeSkillSuggestion}
+          onChangePermissionLevel={changePermissionLevel}
+          onTogglePermissionMenu={() => setShowPermissionMenu(!showPermissionMenu)}
+          getAttachmentPreviewUrl={getAttachmentPreviewUrl}
+          onFilesDropped={handleFilesDropped}
+        />
       </main>
 
       <aside className="right">
@@ -4962,33 +4075,9 @@ function DesktopApp() {
         </Drawer>
       )}
 
-      <div className="toast-wrap">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast ${t.kind}`}>
-            <div className="body">{t.text}</div>
-            <button className="close" onClick={() => dismiss(t.id)} aria-label="Dismiss"><IconClose /></button>
-          </div>
-        ))}
-      </div>
+      <Toasts />
 
-      {/* 大图点击放大 Overlay */}
-      {zoomedImage && (
-        <div className="image-zoom-overlay" onClick={() => setZoomedImage(null)}>
-          <div className="image-zoom-content" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={zoomedImage.previewUrl || loadedPreviews[zoomedImage.id] || ''}
-              alt={zoomedImage.name}
-              onClick={() => setZoomedImage(null)}
-            />
-            <button className="image-zoom-close" onClick={() => setZoomedImage(null)} aria-label="Close zoom">
-              <IconClose />
-            </button>
-            <div className="image-zoom-meta">
-              <span>{zoomedImage.name} ({fmtBytes(zoomedImage.size)})</span>
-            </div>
-          </div>
-        </div>
-      )}
+      <ImageZoomOverlay />
     </div>
   )
 }

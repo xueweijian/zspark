@@ -1,0 +1,108 @@
+/* =====================================================================
+   reasoning.css — CM(CodexMonitor ReasoningRow)的思考块样式。
+   className 完全对齐 CM(tool-inline / reasoning-inline / tool-inline-*),
+   仅适配 zspark 的 --cm-* / --status-* token 体系。
+   ===================================================================== */
+
+.tool-inline {
+  border: 1px solid var(--cm-border-soft);
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin: 0;
+  background: color-mix(in srgb, var(--cm-surface-panel-soft) 88%, transparent);
+  display: flex;
+  position: relative;
+  min-width: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018);
+}
+
+/* reasoning 保持卡片形态,不去边框(CM 的 tool-inline-row 才去边框,reasoning 不去)。 */
+.tool-inline.reasoning-inline {
+  /* 故意留空 — 保留边框/卡片形态。 */
+}
+
+.tool-inline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tool-inline-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--cm-text-stronger);
+  min-width: 0;
+}
+
+.tool-inline-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.tool-inline-bar-toggle {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 28px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.tool-inline-icon {
+  width: 14px;
+  height: 14px;
+  color: var(--status-unknown);
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* zspark 的图标是无 props 的固定 SVG,用 > svg 规则强制 14px。 */
+.tool-inline-icon > svg {
+  width: 14px;
+  height: 14px;
+}
+
+.tool-inline-icon.completed {
+  color: var(--status-success);
+}
+
+.tool-inline-icon.processing {
+  color: var(--status-warning);
+}
+
+.tool-inline-icon.failed {
+  color: var(--status-error);
+}
+
+.tool-inline-value {
+  color: var(--cm-text-stronger);
+  font-weight: 500;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-inline-clamp {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.reasoning-inline-detail {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--cm-text-muted);
+}

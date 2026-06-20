@@ -43,9 +43,10 @@
 }
 .message-wrap:hover, .message-wrap:focus-within { z-index: 8; }
 .message-wrap.user {
+  /* .message-wrap 是 column-flex,右对齐靠 align-self/align-items,不能用 justify-content(那是纵向)。 */
   align-self: flex-end !important;
   align-items: flex-end !important;
-  max-width: min(78%, 760px) !important;
+  max-width: min(72%, 560px) !important; /* 与 .bubble.user 上限一致,保证 actions 宽度跟随气泡 */
 }
 .message-wrap.assistant {
   align-self: flex-start !important;
@@ -53,39 +54,48 @@
   width: min(900px, 100%) !important;
 }
 
-/* 3. 气泡 */
+/* 3. 气泡(对齐 CM:user 右窄蓝调 + assistant 占满 panel-strong) */
+/* 基类兜底:user/assistant 各自覆盖 bg/border,这里只提供半径/底色回退 */
 .bubble {
   max-width: 100% !important;
+  border-radius: 18px !important;
+  border: 1px solid var(--cm-border-emphasis) !important;
+  background: var(--cm-surface-panel-soft) !important;
   font-size: 14px !important;
-  line-height: 1.6 !important;
+  line-height: 1.55 !important;
   overflow-wrap: anywhere !important;
   word-wrap: break-word !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
 }
+/* user 气泡:窄 + 蓝调活跃底 + accent 边 */
 .bubble.user {
-  max-width: 100% !important;
-  background: var(--cm-surface-bubble-user) !important;
+  max-width: min(72%, 560px) !important;
+  background: var(--cm-surface-panel-active) !important;
   color: var(--cm-text-primary) !important;
-  padding: 10px 16px !important;
-  border: 1px solid var(--cm-border-accent) !important;
-  border-radius: 18px 18px 4px 18px !important;
-  box-shadow: var(--shadow-soft) !important;
+  border: 1px solid color-mix(in srgb, var(--cm-border-accent) 28%, transparent) !important;
+  border-radius: 18px !important;
+  padding: 14px 16px !important;
   white-space: pre-wrap !important;
 }
+/* assistant 气泡:占满 + panel-strong */
 .bubble.assistant {
+  max-width: 100% !important;
   width: 100% !important;
-  color: var(--cm-text-primary) !important;
+  padding: 16px 18px !important;
   background: var(--cm-surface-panel-strong) !important;
-  border: 1px solid var(--cm-border-default) !important;
+  border: 1px solid var(--cm-border-emphasis) !important;
   border-radius: 18px !important;
-  padding: 14px 18px !important;
-  box-shadow: var(--shadow-soft) !important;
+  color: var(--cm-text-primary) !important;
   white-space: normal !important;
-  transition: background-color 0.18s ease, border-color 0.18s ease !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease !important;
 }
+/* assistant hover:边框变亮 + 投影 + 饱和提升 */
 .message-wrap.assistant:hover .bubble.assistant,
 .bubble.assistant:focus-within {
-  border-color: var(--cm-border-strong) !important;
-  background: var(--cm-surface-panel-elevated) !important;
+  border-color: var(--cm-border-default) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 10px 28px rgba(7, 12, 34, 0.12) !important;
+  background: color-mix(in srgb, var(--cm-surface-panel-strong) 88%, white) !important;
 }
 
 /* 消息悬浮操作按钮 */

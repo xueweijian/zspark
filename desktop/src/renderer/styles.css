@@ -61,6 +61,14 @@
   --status-success:rgba(120,235,190,0.95);
   --status-warning:rgba(255,175,85,0.95);
   --status-error:rgba(255,110,110,0.95);
+  --status-unknown:rgba(255,255,255,0.3);
+  /* CM 文字分档补充(对齐 CM themes.dark 的 10 级) */
+  --text-stronger:rgba(255,255,255,0.85);
+  --text-quiet:rgba(255,255,255,0.75);
+  --text-subtle:rgba(255,255,255,0.6);
+  --cm-text-stronger:rgba(255,255,255,0.85);
+  --cm-text-quiet:rgba(255,255,255,0.75);
+  --cm-text-subtle:rgba(255,255,255,0.6);
 }
 
 :root[data-theme="light"]{
@@ -109,6 +117,14 @@
   --status-success:rgba(30,155,110,0.9);
   --status-warning:rgba(215,120,20,0.9);
   --status-error:rgba(200,45,45,0.9);
+  --status-unknown:rgba(15,23,36,0.3);
+  /* CM 文字分档补充(对齐 CM themes.light 的 10 级) */
+  --text-stronger:rgba(17,20,28,0.85);
+  --text-quiet:rgba(17,20,28,0.75);
+  --text-subtle:rgba(17,20,28,0.6);
+  --cm-text-stronger:rgba(17,20,28,0.85);
+  --cm-text-quiet:rgba(17,20,28,0.75);
+  --cm-text-subtle:rgba(17,20,28,0.6);
 }
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}

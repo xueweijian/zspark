@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type { Toast, Panel } from '../appTypes'
+import { readStoredTheme, type ThemePreference } from '../features/theme/useThemePreference'
 
 interface UiState {
   panel: Panel
@@ -8,7 +9,13 @@ interface UiState {
   showPermissionMenu: boolean
   showJumpToLatest: boolean
   rightActiveTab: 'files' | 'browser'
+  // 折叠态:由布局壳驱动,折叠时 CSS 变量被覆盖为 0(实际宽度由 useResizablePanels 管)。
+  sidebarCollapsed: boolean
+  rightCollapsed: boolean
+  // 保留 rightWidth 供旧调用方引用;实际拖拽宽度由 useResizablePanels 管理(独立 localStorage)。
   rightWidth: number
+  // 主题:dark(默认)/ light / system
+  theme: ThemePreference
 }
 
 interface UiActions {
@@ -18,19 +25,27 @@ interface UiActions {
   setShowPermissionMenu: (v: boolean) => void
   setShowJumpToLatest: (v: boolean) => void
   setRightActiveTab: (v: 'files' | 'browser') => void
+  setSidebarCollapsed: (v: boolean) => void
+  toggleSidebarCollapsed: () => void
+  setRightCollapsed: (v: boolean) => void
+  toggleRightCollapsed: () => void
   setRightWidth: (v: number) => void
+  setTheme: (v: ThemePreference) => void
 }
 
 export type UiStore = UiState & UiActions
 
-export const useUiStore = create<UiStore>((set) => ({
+export const useUiStore = create<UiStore>((set, get) => ({
   panel: null,
   showSettings: false,
   toasts: [],
   showPermissionMenu: false,
   showJumpToLatest: false,
   rightActiveTab: 'files',
+  sidebarCollapsed: false,
+  rightCollapsed: false,
   rightWidth: 300,
+  theme: readStoredTheme(),
 
   setPanel: (action) => {
     if (typeof action === 'function') {
@@ -50,5 +65,10 @@ export const useUiStore = create<UiStore>((set) => ({
   setShowPermissionMenu: (v) => set({ showPermissionMenu: v }),
   setShowJumpToLatest: (v) => set({ showJumpToLatest: v }),
   setRightActiveTab: (v) => set({ rightActiveTab: v }),
-  setRightWidth: (v) => set({ rightWidth: v })
+  setSidebarCollapsed: (v) => set({ sidebarCollapsed: v }),
+  toggleSidebarCollapsed: () => set({ sidebarCollapsed: !get().sidebarCollapsed }),
+  setRightCollapsed: (v) => set({ rightCollapsed: v }),
+  toggleRightCollapsed: () => set({ rightCollapsed: !get().rightCollapsed }),
+  setRightWidth: (v) => set({ rightWidth: v }),
+  setTheme: (v) => set({ theme: v })
 }))

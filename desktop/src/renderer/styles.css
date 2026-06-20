@@ -1,8 +1,118 @@
 @import "tailwindcss";
 
-:root{--bg:#f6f7f9;--bg-elevated:#fbfcfd;--surface:#fff;--surface-soft:#f8fafc;--surface-hover:#f1f5f9;--border:#e5e7eb;--border-strong:#d7dce3;--text:#18181b;--muted:#71717a;--muted-strong:#52525b;--accent:#2563eb;--accent-strong:#1d4ed8;--accent-soft:#eff6ff;--success:#16a34a;--danger:#b91c1c;--shadow-soft:0 10px 30px rgba(15,23,42,.07);--shadow-tight:0 1px 2px rgba(15,23,42,.05),0 8px 24px rgba(15,23,42,.06);--cm-text-primary:#1a1d24;--cm-text-strong:#0e1118;--cm-text-emphasis:rgba(17,20,28,0.9);--cm-text-muted:rgba(17,20,28,0.7);--cm-text-faint:rgba(17,20,28,0.5);--cm-surface-messages:rgba(238,241,246,0.9);--cm-surface-composer:rgba(250,251,253,0.9);--cm-surface-card:rgba(255,255,255,0.72);--cm-surface-bubble-user:rgba(77,153,255,0.12);--cm-border-subtle:rgba(15,23,36,0.06);--cm-border-strong:rgba(15, 23, 36, 0.12);--cm-border-accent:rgba(77,153,255,0.45);--cm-surface-panel-soft:rgba(255,255,255,0.40);--cm-surface-panel-strong:rgba(255,255,255,0.52);--cm-surface-panel-elevated:rgba(255,255,255,0.65);--cm-border-heavy:rgba(15,23,36,0.08)}
+/* ============================================================
+   主题系统:CM(CodexMonitor)风格移植
+   - dark 为默认(:root),light 通过 [data-theme="light"] 覆盖
+   - 实色档(reduced-transparency):surface alpha 普遍 0.9+,避免过度透明
+   - 同时定义 zspark 旧变量名(--bg/--surface/--border/--text 等),
+     让现有组件零改动即可切换主题
+   - --cm-* 派生体系:面板透明度/边框强度分档,是 CM 玻璃质感的核心
+   ============================================================ */
+:root{
+  color-scheme:dark;
+  /* 字体 */
+  --ui-font-family:'Inter','SF Pro Text',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;
+  --code-font-family:ui-monospace,'Cascadia Mono','Segoe UI Mono',Menlo,Monaco,Consolas,'Liberation Mono','Courier New',monospace;
+  /* dark surface(实色档,不透明) */
+  --surface-sidebar:#121212;
+  --surface-topbar:#0a0e14;
+  --surface-right-panel:#090c14;
+  --surface-composer:#0a0e14;
+  --surface-messages:#080a10;
+  /* zspark 旧变量名 → 映射到 dark(兼容现有组件) */
+  --bg:#080a10;
+  --bg-elevated:#0e1218;
+  --surface:#16191f;
+  --surface-soft:#12151b;
+  --surface-hover:#1f242c;
+  --border:rgba(255,255,255,0.10);
+  --border-strong:rgba(255,255,255,0.16);
+  --text:#e6e7ea;
+  --muted:rgba(255,255,255,0.55);
+  --muted-strong:rgba(255,255,255,0.75);
+  --accent:#4d99ff;
+  --accent-strong:#6db0ff;
+  --accent-soft:rgba(77,153,255,0.16);
+  --success:rgba(120,235,190,0.95);
+  --danger:rgba(255,110,110,0.95);
+  --shadow-soft:0 10px 30px rgba(0,0,0,0.35);
+  --shadow-tight:0 1px 2px rgba(0,0,0,0.30),0 8px 24px rgba(0,0,0,0.35);
+  /* CM 文本分档 */
+  --cm-text-primary:#e6e7ea;
+  --cm-text-strong:#ffffff;
+  --cm-text-emphasis:rgba(255,255,255,0.9);
+  --cm-text-muted:rgba(255,255,255,0.7);
+  --cm-text-faint:rgba(255,255,255,0.5);
+  --cm-surface-messages:#080a10;
+  --cm-surface-composer:#0a0e14;
+  --cm-surface-card:rgba(255,255,255,0.06);
+  --cm-surface-bubble-user:rgba(77,153,255,0.35);
+  --cm-surface-panel-soft:rgba(255,255,255,0.05);
+  --cm-surface-panel-strong:rgba(255,255,255,0.09);
+  --cm-surface-panel-elevated:rgba(255,255,255,0.13);
+  --cm-surface-panel-active:rgba(100,200,255,0.18);
+  --cm-border-subtle:rgba(255,255,255,0.08);
+  --cm-border-strong:rgba(255,255,255,0.16);
+  --cm-border-accent:rgba(100,200,255,0.5);
+  --cm-border-heavy:rgba(255,255,255,0.12);
+  --cm-border-default:rgba(255,255,255,0.12);
+  --cm-border-emphasis:rgba(255,255,255,0.16);
+  /* 状态色 */
+  --status-success:rgba(120,235,190,0.95);
+  --status-warning:rgba(255,175,85,0.95);
+  --status-error:rgba(255,110,110,0.95);
+}
+
+:root[data-theme="light"]{
+  color-scheme:light;
+  --surface-sidebar:#f6f7fa;
+  --surface-topbar:#fafbfd;
+  --surface-right-panel:#f5f7fa;
+  --surface-composer:#fafbfd;
+  --surface-messages:#eef1f6;
+  --bg:#eef1f6;
+  --bg-elevated:#f5f7fa;
+  --surface:#ffffff;
+  --surface-soft:#f6f8fb;
+  --surface-hover:#eaedf2;
+  --border:rgba(15,23,36,0.10);
+  --border-strong:rgba(15,23,36,0.16);
+  --text:#1a1d24;
+  --muted:rgba(17,20,28,0.55);
+  --muted-strong:rgba(17,20,28,0.75);
+  --accent:#2d5daa;
+  --accent-strong:#1d4ed8;
+  --accent-soft:rgba(77,153,255,0.14);
+  --success:rgba(30,155,110,0.9);
+  --danger:rgba(200,45,45,0.9);
+  --shadow-soft:0 10px 30px rgba(15,23,42,0.07);
+  --shadow-tight:0 1px 2px rgba(15,23,42,0.05),0 8px 24px rgba(15,23,42,0.06);
+  --cm-text-primary:#1a1d24;
+  --cm-text-strong:#0e1118;
+  --cm-text-emphasis:rgba(17,20,28,0.9);
+  --cm-text-muted:rgba(17,20,28,0.7);
+  --cm-text-faint:rgba(17,20,28,0.5);
+  --cm-surface-messages:#eef1f6;
+  --cm-surface-composer:#fafbfd;
+  --cm-surface-card:rgba(255,255,255,0.82);
+  --cm-surface-bubble-user:rgba(77,153,255,0.22);
+  --cm-surface-panel-soft:rgba(255,255,255,0.60);
+  --cm-surface-panel-strong:rgba(255,255,255,0.82);
+  --cm-surface-panel-elevated:rgba(255,255,255,0.92);
+  --cm-surface-panel-active:rgba(77,153,255,0.18);
+  --cm-border-subtle:rgba(15,23,36,0.08);
+  --cm-border-strong:rgba(15,23,36,0.14);
+  --cm-border-accent:rgba(77,153,255,0.5);
+  --cm-border-heavy:rgba(15,23,36,0.12);
+  --cm-border-default:rgba(15,23,36,0.12);
+  --cm-border-emphasis:rgba(15,23,36,0.14);
+  --status-success:rgba(30,155,110,0.9);
+  --status-warning:rgba(215,120,20,0.9);
+  --status-error:rgba(200,45,45,0.9);
+}
+
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body,#root{height:100%;font-family:'Inter','SF Pro Text',-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+html,body,#root{height:100%;font-family:var(--ui-font-family);color:var(--text);background:var(--bg);font-size:14px;line-height:1.55;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 button{font:inherit;cursor:pointer;border:none;background:none;color:inherit}
 input,textarea,select{font:inherit}
 ::-webkit-scrollbar{width:8px;height:8px}
@@ -10,7 +120,13 @@ input,textarea,select{font:inherit}
 ::-webkit-scrollbar-thumb:hover{background:#c8ced8}
 
 /* Layout */
-.app{display:grid;grid-template-columns:260px minmax(0,1fr) var(--aside-right-width, 300px);height:100vh;background:linear-gradient(180deg,#fbfcfd 0%,#f3f5f8 100%)}
+.app{display:grid;grid-template-columns:var(--sidebar-width,260px) minmax(0,1fr) var(--right-panel-width,320px);height:100vh;background:linear-gradient(180deg,#fbfcfd 0%,#f3f5f8 100%);transition:grid-template-columns 220ms ease}
+/* 拖拽中关闭过渡,否则鼠标追不上 */
+.app.is-resizing{transition:none}
+/* 侧边栏拖拽手柄:贴在左栏右边缘 */
+.sidebar-resize-handle{position:relative;width:0;height:100%;cursor:col-resize;z-index:50}
+.sidebar-resize-handle::after{content:"";position:absolute;top:0;bottom:0;left:-3px;width:6px;border-radius:3px;transition:background-color .15s ease}
+.sidebar-resize-handle:hover::after,.sidebar-resize-handle:active::after{background-color:rgba(37,99,235,.4)}
 .bridge-missing{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--text);padding:24px}
 .bridge-missing > div{width:min(420px,100%);border:1px solid var(--border);border-radius:10px;background:var(--surface);padding:20px;box-shadow:var(--shadow-soft)}
 .bridge-missing h1{font-size:16px;font-weight:650;letter-spacing:0;margin-bottom:6px}
@@ -56,6 +172,15 @@ input,textarea,select{font:inherit}
 .workspace-title span{font-size:14px;font-weight:700;line-height:1.15}
 .workspace-title small{max-width:min(44vw,520px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;line-height:1.25;color:#71717a;font-weight:500}
 .chat-header .right{display:flex;gap:10px;align-items:center}
+/* 布局折叠切换按钮组(放在中栏顶栏左侧) */
+.layout-toggle-group{display:flex;gap:4px;align-items:center;margin-right:8px}
+.layout-toggle{padding:5px 7px;color:#71717a}
+.layout-toggle:hover{color:#3f3f46}
+.layout-toggle svg{transition:transform .2s ease}
+.layout-toggle.is-collapsed svg{transform:rotate(180deg)}
+/* 右栏折叠按钮默认箭头朝右(展开朝左) */
+.layout-toggle-right svg{transform:rotate(180deg)}
+.layout-toggle-right.is-collapsed svg{transform:rotate(0deg)}
 .header-btn{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1px solid var(--border);color:#3f3f46;padding:6px 11px;border-radius:8px;font-size:12.5px;font-weight:600;transition:background .12s,border-color .12s,box-shadow .12s}
 .header-btn:hover{background:var(--surface-soft);border-color:var(--border-strong);box-shadow:0 1px 2px rgba(15,23,42,.04)}
 .header-btn.danger{border-color:#fecaca;background:#fff;color:#991b1b}
@@ -2146,15 +2271,26 @@ input,textarea,select{font:inherit}
    白主题 UI 改版第二阶段：像素级还原与精细重塑
    ========================================================================== */
 
-/* 1. 侧边栏折叠 */
-.app.sidebar-collapsed {
-  grid-template-columns: 0px minmax(0,1fr) 300px !important;
-}
+/* 1. 侧边栏折叠(宽度变量已在 App.tsx 折叠时置 0,这里只处理内部元素隐藏 + 手柄隐藏) */
 .app.sidebar-collapsed .sidebar {
   width: 0 !important;
   padding: 0 !important;
   border-right: none !important;
   overflow: hidden !important;
+  opacity: 0;
+  pointer-events: none;
+}
+.app.sidebar-collapsed .sidebar-resize-handle {
+  display: none !important;
+}
+/* 右栏折叠:淡出 + 禁止交互(宽度变量已置 0) */
+.app.right-panel-collapsed .right {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  border-left-color: transparent !important;
+}
+.app.right-panel-collapsed .right-resize-handle {
+  display: none !important;
 }
 
 /* 2. 左侧 Header 折叠按钮 */

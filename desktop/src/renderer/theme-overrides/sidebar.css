@@ -1,0 +1,366 @@
+/* ============================================================
+   theme-overrides/sidebar.css
+   用途:CM(CodexMonitor)风格的左栏(sidebar)与顶部栏(chat-header)覆盖样式。
+   ------------------------------------------------------------
+   设计基线:
+   - sidebar 背景用 --surface-sidebar;卡片/导航项用 --cm-surface-panel-strong
+     + --cm-border-default;hover 用 --cm-surface-panel-active;圆角 14-16px;
+     导航项/工作区/会话项改为 pill 卡片样式(对齐 CM 的 .workspace-row/.thread-row)。
+   - chat-header 用 --surface-topbar 实色背景 + --cm-border-subtle 底边框,
+     不使用 backdrop-filter(实色档)。
+   - 状态点用 --status-success / --status-error 等变量。
+   ------------------------------------------------------------
+   变量来源:仅使用 styles.css 中 :root / :root[data-theme="light"] 定义的变量,
+   不硬编码任何颜色。
+   ------------------------------------------------------------
+   加载顺序:必须晚于 styles.css 中带 !important 的覆盖段(约 1685-1808 行),
+   因此对 chat-header / header-btn / status-dot 等属性也使用 !important。
+   其余属性尽量用普通声明;无法覆盖时才加 !important,总体保持克制。
+   ============================================================ */
+
+/* ============================================================
+   1. Sidebar 容器
+   ============================================================ */
+.sidebar {
+  background: var(--surface-sidebar) !important;
+  border-right: 1px solid var(--cm-border-subtle) !important;
+  padding: 14px 12px !important;
+}
+
+/* ============================================================
+   2. Brand 区(保留 logo 渐变,仅统一文字色与阴影)
+   ============================================================ */
+.brand {
+  color: var(--cm-text-strong) !important;
+}
+.brand-copy strong {
+  color: var(--cm-text-strong) !important;
+}
+.brand-copy span {
+  color: var(--cm-text-faint) !important;
+}
+.brand-mark {
+  box-shadow: var(--shadow-tight) !important;
+}
+
+/* ============================================================
+   3. 分组小标题(h3 / section title / section 操作)
+   ============================================================ */
+.sidebar h3,
+.sidebar-section-title {
+  color: var(--cm-text-faint) !important;
+}
+.sidebar-section-head:hover {
+  background: var(--cm-surface-panel-soft) !important;
+}
+.sidebar-section-add:hover,
+.sidebar-section-action:hover {
+  background: var(--cm-surface-panel-soft) !important;
+  color: var(--cm-text-strong) !important;
+}
+
+/* ============================================================
+   4. 主导航项(nav-item)— pill 卡片
+   ============================================================ */
+.nav-item {
+  border-radius: 14px !important;
+  color: var(--cm-text-muted) !important;
+  transition: background .15s ease, color .15s ease, box-shadow .15s ease !important;
+}
+.nav-item svg {
+  color: var(--cm-text-faint) !important;
+}
+.nav-item:hover {
+  background: var(--cm-surface-panel-strong) !important;
+  box-shadow: inset 0 0 0 1px var(--cm-border-default) !important;
+  color: var(--cm-text-strong) !important;
+}
+.nav-item:hover svg {
+  color: var(--cm-text-muted) !important;
+}
+/* 激活:CM 强调色软底 + accent 描边,去掉 base 的左侧竖条 */
+.nav-item.active {
+  background: var(--cm-surface-panel-active) !important;
+  color: var(--cm-text-strong) !important;
+  font-weight: 600 !important;
+  box-shadow: inset 0 0 0 1px var(--cm-border-accent) !important;
+}
+.nav-item.active svg {
+  color: var(--accent) !important;
+}
+.nav-item.active::before {
+  display: none !important;
+}
+
+/* ============================================================
+   5. 工作区项(workspace-item)— 卡片化
+   ============================================================ */
+.workspace-item {
+  border-radius: 14px !important;
+  padding: 8px 12px !important;
+  transition: background .15s ease, box-shadow .15s ease !important;
+}
+.workspace-item:hover {
+  background: var(--cm-surface-panel-strong) !important;
+  box-shadow: inset 0 0 0 1px var(--cm-border-default) !important;
+}
+.workspace-item.active {
+  background: var(--cm-surface-panel-active) !important;
+  box-shadow: inset 0 0 0 1px var(--cm-border-accent) !important;
+}
+.workspace-path {
+  color: var(--cm-text-muted) !important;
+}
+.workspace-dot {
+  color: var(--cm-text-faint) !important;
+}
+.workspace-item.active .workspace-path {
+  color: var(--cm-text-strong) !important;
+}
+.workspace-item.active .workspace-dot {
+  color: var(--accent) !important;
+}
+
+/* ============================================================
+   6. 项目-会话嵌套结构(project-group / nested-thread / nav-item-thread)
+   ============================================================ */
+.project-group-header {
+  border-radius: 12px !important;
+  padding: 6px 10px !important;
+  transition: background .15s ease !important;
+}
+.project-group-header:hover {
+  background: var(--cm-surface-panel-soft) !important;
+}
+.project-group-header.active {
+  background: var(--cm-surface-panel-active) !important;
+  box-shadow: inset 0 0 0 1px var(--cm-border-accent) !important;
+}
+.project-name {
+  color: var(--cm-text-muted) !important;
+}
+.project-group-header.active .project-name {
+  color: var(--cm-text-strong) !important;
+}
+.project-collapse-toggle {
+  color: var(--cm-text-faint) !important;
+}
+.project-collapse-toggle:hover {
+  background: var(--cm-surface-panel-soft) !important;
+  color: var(--cm-text-strong) !important;
+}
+.project-add-thread-btn {
+  color: var(--cm-text-faint) !important;
+}
+.project-add-thread-btn:hover {
+  background: var(--cm-surface-panel-soft) !important;
+  color: var(--cm-text-strong) !important;
+}
+.project-inactive-dot {
+  color: var(--cm-text-faint) !important;
+}
+.project-threads-list {
+  border-left-color: var(--cm-border-subtle) !important;
+}
+.nested-thread-item {
+  border-radius: 10px !important;
+  padding: 5px 8px !important;
+}
+.thread-item-bullet {
+  color: var(--cm-text-faint) !important;
+}
+
+/* 会话列表项(nav-item-thread)— pill */
+.nav-item-thread {
+  border-radius: 14px !important;
+  padding-left: 12px !important;
+  padding-right: 6px !important;
+  transition: background .15s ease, box-shadow .15s ease !important;
+}
+.nav-item-thread:hover {
+  background: var(--cm-surface-panel-strong) !important;
+  box-shadow: inset 0 0 0 1px var(--cm-border-default) !important;
+}
+.nav-item-thread.active,
+.nav-item-thread.selected {
+  background: var(--cm-surface-panel-active) !important;
+  box-shadow: inset 0 0 0 1px var(--cm-border-accent) !important;
+}
+.nav-item-thread .thread-time {
+  color: var(--cm-text-faint) !important;
+}
+
+/* "展开更多会话"切换按钮 */
+.thread-expand-toggle-btn {
+  background: var(--cm-surface-panel-soft) !important;
+  border-color: var(--cm-border-default) !important;
+  color: var(--cm-text-muted) !important;
+}
+.thread-expand-toggle-btn:hover {
+  background: var(--cm-surface-panel-active) !important;
+  border-color: var(--cm-border-accent) !important;
+  color: var(--accent-strong) !important;
+}
+
+/* ============================================================
+   7. 本地/共享工作区卡片(local-workspace-btn, shared-sidebar)
+   ============================================================ */
+.local-workspace-btn {
+  border-radius: 14px !important;
+  border: 1px solid var(--cm-border-default) !important;
+  background: var(--cm-surface-panel-strong) !important;
+  color: var(--cm-text-muted) !important;
+}
+.local-workspace-btn:hover {
+  background: var(--cm-surface-panel-active) !important;
+  border-color: var(--cm-border-accent) !important;
+  color: var(--accent-strong) !important;
+}
+.shared-sidebar {
+  border-radius: 16px !important;
+  border: 1px solid var(--cm-border-default) !important;
+  background: var(--cm-surface-panel-strong) !important;
+  box-shadow: none !important;
+}
+.shared-sidebar-head {
+  color: var(--cm-text-faint) !important;
+}
+.shared-sidebar-head button {
+  color: var(--cm-text-muted) !important;
+}
+.shared-sidebar-head button:hover {
+  background: var(--cm-surface-panel-soft) !important;
+  color: var(--cm-text-strong) !important;
+}
+.shared-workspace-list button:hover {
+  background: var(--cm-surface-panel-soft) !important;
+}
+.shared-workspace-list button.active {
+  background: var(--cm-surface-panel-active) !important;
+  color: var(--accent-strong) !important;
+}
+
+/* ============================================================
+   8. 顶部栏(chat-header)— 实色背景,无 backdrop-filter
+   ============================================================ */
+.chat-header {
+  background: var(--surface-topbar) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  border-bottom: 1px solid var(--cm-border-subtle) !important;
+  box-shadow: none !important;
+}
+.chat-header .left {
+  color: var(--cm-text-strong) !important;
+}
+.workspace-title span {
+  color: var(--cm-text-strong) !important;
+}
+.workspace-title small {
+  color: var(--cm-text-faint) !important;
+}
+
+/* 折叠布局按钮 */
+.layout-toggle {
+  border-radius: 10px !important;
+  color: var(--cm-text-faint) !important;
+  transition: background .15s ease, color .15s ease !important;
+}
+.layout-toggle:hover {
+  background: var(--cm-surface-panel-soft) !important;
+  color: var(--cm-text-strong) !important;
+}
+
+/* 面包屑 */
+.chat-breadcrumb {
+  color: var(--cm-text-muted) !important;
+}
+.chat-breadcrumb .separator {
+  color: var(--cm-text-faint) !important;
+}
+.chat-breadcrumb .current {
+  color: var(--cm-text-strong) !important;
+}
+
+/* ============================================================
+   9. 顶栏按钮(header-btn / header-btn-icon)— CM 实色圆角
+   ============================================================ */
+.header-btn {
+  border: 1px solid var(--cm-border-default) !important;
+  border-radius: 10px !important;
+  background: var(--cm-surface-panel-strong) !important;
+  color: var(--cm-text-primary) !important;
+  box-shadow: none !important;
+  transform: none !important;
+  transition: background .15s ease, border-color .15s ease, color .15s ease !important;
+}
+.header-btn svg {
+  width: 15px !important;
+  height: 15px !important;
+}
+.header-btn:hover {
+  background: var(--cm-surface-panel-active) !important;
+  border-color: var(--cm-border-accent) !important;
+  color: var(--accent-strong) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+.header-btn:active {
+  transform: none !important;
+}
+.header-btn.danger {
+  border-color: var(--status-error) !important;
+  background: var(--cm-surface-panel-strong) !important;
+  color: var(--status-error) !important;
+}
+.header-btn.danger:hover {
+  background: var(--cm-surface-panel-active) !important;
+  border-color: var(--status-error) !important;
+  color: var(--status-error) !important;
+  box-shadow: none !important;
+}
+
+/* 图标变体按钮(header-btn-icon) */
+.header-btn-icon {
+  border-radius: 10px !important;
+  border: 1px solid var(--cm-border-default) !important;
+  background: var(--cm-surface-panel-strong) !important;
+  color: var(--cm-text-muted) !important;
+}
+.header-btn-icon:hover {
+  background: var(--cm-surface-panel-active) !important;
+  border-color: var(--cm-border-accent) !important;
+  color: var(--accent-strong) !important;
+}
+.header-btn-icon.danger {
+  border-color: var(--status-error) !important;
+  color: var(--status-error) !important;
+}
+.header-btn-icon.danger:hover {
+  background: var(--cm-surface-panel-active) !important;
+  color: var(--status-error) !important;
+}
+
+/* ============================================================
+   10. 状态点(status-dot)— 用 --status-* 变量
+       保留 styles.css 1685 段重排后的"独立圆点"造型,仅替换颜色。
+   ============================================================ */
+.status-dot {
+  border: 2px solid var(--surface-topbar) !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+.status-dot::before {
+  content: none !important;
+}
+.status-dot,
+.status-dot.off {
+  background: var(--cm-text-faint) !important;
+}
+.status-dot.live {
+  background: var(--status-success) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}
+.status-dot.streaming {
+  background: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-soft), 0 2px 6px rgba(0, 0, 0, 0.06) !important;
+}

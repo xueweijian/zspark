@@ -1,0 +1,83 @@
+/* =====================================================================
+   right-panel.css — CM(CodexMonitor)风格 右栏覆盖样式
+   只使用 styles.css :root(:root 与 [data-theme="light"])里定义的 CSS 变量,不硬编码颜色。
+   保持 zspark 右栏现有的「文件 / 浏览器」双 tab 结构,仅做视觉 CM 化。
+   ===================================================================== */
+
+/* 1. 右栏外壳(不加 !important,避免波及 .chat-header .right) */
+.right {
+  background: var(--surface-right-panel);
+  border-left: 1px solid var(--cm-border-subtle);
+  color: var(--cm-text-muted);
+}
+.app.right-panel-collapsed .right { border-left-color: transparent !important; }
+.right-resize-handle:hover, .right-resize-handle:active { background-color: var(--accent) !important; }
+
+/* 2. 顶部 tab(.aside-tabs)→ CM pill 容器 */
+.aside-tabs {
+  gap: 4px !important; padding: 4px !important;
+  border: 1px solid var(--cm-border-default) !important; border-radius: 999px !important;
+  background: var(--cm-surface-panel-soft) !important;
+}
+.aside-tabs button {
+  border: none !important; border-radius: 999px !important; padding: 6px 12px !important;
+  font-weight: 600 !important; color: var(--cm-text-muted) !important; background: transparent !important;
+  transition: background 160ms ease, color 160ms ease !important;
+}
+.aside-tabs button:hover:not(.active) { color: var(--cm-text-emphasis) !important; }
+.aside-tabs button.active {
+  background: var(--cm-surface-panel-active) !important; color: var(--cm-text-strong) !important; border-bottom: none !important;
+}
+
+/* 3. 分区卡片(.right-section)→ CM 卡片 */
+.right-section {
+  border: 1px solid var(--cm-border-default) !important; border-radius: 14px !important;
+  background: var(--cm-surface-panel-strong) !important; box-shadow: var(--shadow-soft) !important;
+}
+.right-section h4 { color: var(--cm-text-muted) !important; letter-spacing: 0.08em !important; }
+.right-empty { color: var(--cm-text-faint) !important; }
+
+/* 4. runtime 键值对(.kv) */
+.kv { border-bottom: 1px solid var(--cm-border-subtle) !important; }
+.kv:last-child { border-bottom: none !important; }
+.kv .k { color: var(--cm-text-muted) !important; }
+.kv .v { color: var(--cm-text-strong) !important; }
+
+/* 5. 运行状态 pill(.pill) */
+.pill { background: var(--cm-surface-panel-soft) !important; color: var(--status-success) !important; }
+.pill::before { background: var(--status-success) !important; }
+.pill.off { background: var(--cm-surface-panel-soft) !important; color: var(--status-error) !important; }
+.pill.off::before { background: var(--status-error) !important; }
+
+/* 6. 文件列表(.file-list / .file-row) */
+.file-list { gap: 6px !important; }
+.file-row {
+  border: 1px solid var(--cm-border-default) !important; border-radius: 10px !important;
+  background: var(--cm-surface-panel-soft) !important; box-shadow: none !important;
+}
+.file-row:hover { background: var(--surface-hover) !important; border-color: var(--cm-border-strong) !important; }
+.file-row-main button { color: var(--cm-text-strong) !important; }
+.file-actions button, .file-reveal {
+  border: 1px solid var(--cm-border-default) !important; background: var(--cm-surface-panel-soft) !important; color: var(--cm-text-muted) !important;
+}
+.file-actions button:hover:not(:disabled), .file-reveal:hover {
+  background: var(--cm-surface-panel-strong) !important; border-color: var(--cm-border-strong) !important; color: var(--cm-text-strong) !important;
+}
+.file-actions button:disabled { opacity: 0.45 !important; }
+
+/* 7. 文件状态徽标(.file-status-*) */
+.file-status { background: var(--cm-surface-panel-soft) !important; }
+.file-status-attached { background: var(--cm-surface-panel-soft) !important; color: var(--accent) !important; }
+.file-status-created { background: var(--cm-surface-panel-soft) !important; color: var(--status-success) !important; }
+.file-status-modified { background: var(--cm-surface-panel-soft) !important; color: var(--status-warning) !important; }
+.file-status-deleted { background: var(--cm-surface-panel-soft) !important; color: var(--status-error) !important; }
+.file-status-missing { background: var(--cm-surface-panel-soft) !important; color: var(--status-error) !important; }
+
+/* 8. 内置浏览器表面(「浏览器」tab 内) */
+.browser-address-bar { background: var(--cm-surface-panel-soft) !important; border-bottom: 1px solid var(--cm-border-subtle) !important; }
+.nav-btn, .action-btn { border: 1px solid var(--cm-border-default) !important; background: var(--cm-surface-panel-strong) !important; color: var(--cm-text-muted) !important; }
+.nav-btn:hover, .action-btn:hover { background: var(--surface-hover) !important; color: var(--cm-text-emphasis) !important; }
+.action-btn.active { background: var(--accent-soft) !important; border-color: var(--cm-border-accent) !important; color: var(--accent) !important; }
+.address-input { border: 1px solid var(--cm-border-default) !important; background: var(--cm-surface-panel-strong) !important; color: var(--cm-text-primary) !important; }
+.address-input:focus { border-color: var(--accent) !important; }
+.browser-viewport-placeholder { background: var(--surface-right-panel) !important; }

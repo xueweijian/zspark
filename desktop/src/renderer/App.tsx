@@ -33,6 +33,8 @@ import { fuzzyFilter } from './utils/fuzzyMatch'
 import { saveDraft, loadDraft, clearDraft, cleanupOldDrafts } from './utils/draftPersistence'
 import { throttle } from './utils/throttle'
 import { useRuntimeStore } from './store/runtimeStore'
+import { useResizablePanels } from './features/layout/hooks/useResizablePanels'
+import { useThemePreference, type ThemePreference } from './features/theme/useThemePreference'
 import {
   dirname,
   extractArtifactPathCandidates,
@@ -502,8 +504,18 @@ function DesktopApp() {
     showPermissionMenu, setShowPermissionMenu,
     showJumpToLatest, setShowJumpToLatest,
     rightActiveTab, setRightActiveTab,
-    rightWidth, setRightWidth
+    sidebarCollapsed, toggleSidebarCollapsed,
+    rightCollapsed, toggleRightCollapsed,
+    rightWidth, setRightWidth,
+    theme, setTheme
   } = useUiStore()
+  // 布局尺寸:左/右栏宽度 + 拖拽 handler(零重渲染 + localStorage 持久化)。
+  const {
+    appRef, isResizing, sidebarWidth, rightPanelWidth,
+    onSidebarResizeStart, onRightPanelResizeStart,
+  } = useResizablePanels()
+  // 主题:应用到 <html> data-theme + 持久化
+  useThemePreference(theme)
   const {
     thread, setThread,
     ready, setReady,
@@ -533,31 +545,6 @@ function DesktopApp() {
   const [recentWorkspaces, setRecentWorkspaces] = useState<WorkspaceInfo[]>([])
   const [workspaceBusy, setWorkspaceBusy] = useState(false)
   const [collapsedSections, setCollapsedSections] = useState<CollapsedSections>({ localWorkspaces: false, sharedWorkspaces: true, recent: false })
-
-  const handleRightResizeMouseDown = (e: React.MouseEvent) => {
-    e.preventDefault()
-    const startX = e.clientX
-    const startWidth = rightWidth
-
-    const doDrag = (moveEvent: MouseEvent) => {
-      const newWidth = startWidth - (moveEvent.clientX - startX)
-      if (newWidth >= 200 && newWidth <= 800) {
-        setRightWidth(newWidth)
-      }
-    }
-
-    const stopDrag = () => {
-      document.removeEventListener('mousemove', doDrag)
-      document.removeEventListener('mouseup', stopDrag)
-      document.body.style.cursor = ''
-      document.body.style.userSelect = ''
-    }
-
-    document.addEventListener('mousemove', doDrag)
-    document.addEventListener('mouseup', stopDrag)
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-  }
 
 
   const handleBrowserSelection = async (payload: any) => {
@@ -3603,8 +3590,15 @@ function DesktopApp() {
   const sharedWorkspaceFiles = workspaceFiles.filter((file) => file.sharedArtifact)
   const visibleWorkspaceFiles = activeSharedWorkspace ? sharedWorkspaceFiles : workspaceFiles
 
+  // 布局根的 className + CSS 变量。折叠时把宽度变量覆盖为 0(CSS grid 列随之塌缩)。
+  const appClassName = `app${isResizing ? ' is-resizing' : ''}${sidebarCollapsed ? ' sidebar-collapsed' : ''}${rightCollapsed ? ' right-panel-collapsed' : ''}`
+  const appStyle = {
+    '--sidebar-width': `${sidebarCollapsed ? 0 : sidebarWidth}px`,
+    '--right-panel-width': `${rightCollapsed ? 0 : rightPanelWidth}px`,
+  } as React.CSSProperties
+
   return (
-    <div className="app" style={{ '--aside-right-width': `${rightWidth}px` } as React.CSSProperties}>
+    <div ref={appRef} className={appClassName} style={appStyle}>
       <Sidebar
         t={t}
         newChat={newChat}
@@ -3633,8 +3627,50 @@ function DesktopApp() {
         onDeleteThreads={deleteMultipleThreads}
       />
 
+      <div
+        className="sidebar-resize-handle"
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize sidebar"
+        onMouseDown={onSidebarResizeStart}
+        onDoubleClick={toggleSidebarCollapsed}
+        title="拖拽调整宽度,双击折叠/展开"
+      />
+
       <main className="chat">
         <div className="chat-header">
+          <div className="layout-toggle-group">
+            <button
+              className={`header-btn layout-toggle${sidebarCollapsed ? ' is-collapsed' : ''}`}
+              onClick={toggleSidebarCollapsed}
+              title={sidebarCollapsed ? '展开侧边栏' : '折叠侧边栏'}
+              aria-label="Toggle sidebar"
+              aria-pressed={sidebarCollapsed}
+            >
+              <IconChevron />
+            </button>
+            <button
+              className={`header-btn layout-toggle layout-toggle-right${rightCollapsed ? ' is-collapsed' : ''}`}
+              onClick={toggleRightCollapsed}
+              title={rightCollapsed ? '展开右侧栏' : '折叠右侧栏'}
+              aria-label="Toggle right panel"
+              aria-pressed={rightCollapsed}
+            >
+              <IconChevron />
+            </button>
+            <button
+              className="header-btn layout-toggle theme-toggle"
+              onClick={() => {
+                const order: ThemePreference[] = ['dark', 'light', 'system']
+                const next = order[(order.indexOf(theme) + 1) % order.length]
+                setTheme(next)
+              }}
+              title={`主题: ${theme}(点击切换)`}
+              aria-label="Toggle theme"
+            >
+              {theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : '🖥️'}
+            </button>
+          </div>
           <div className="left chat-breadcrumb">
             <span>{activeSharedWorkspaceName ? t('nav.sharedWorkspace') : t('nav.workspace')}</span>
             <span className="separator">&gt;</span>
@@ -3738,9 +3774,12 @@ function DesktopApp() {
       <aside className="right">
         <div
           className="right-resize-handle"
-          onMouseDown={handleRightResizeMouseDown}
-          title="双击恢复默认宽度"
-          onDoubleClick={() => setRightWidth(300)}
+          role="separator"
+          aria-orientation="vertical"
+          aria-label="Resize right panel"
+          onMouseDown={onRightPanelResizeStart}
+          onDoubleClick={toggleRightCollapsed}
+          title="拖拽调整宽度,双击折叠/展开"
         />
 
         <div className="aside-tabs">

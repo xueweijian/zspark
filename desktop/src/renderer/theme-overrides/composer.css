@@ -1,0 +1,191 @@
+/*
+ * composer.css — CM (CodexMonitor) 风格的底部输入框(composer / chat-input)覆盖样式
+ * 作为 styles.css 之后的覆盖层加载(在 src/renderer/main.tsx 里
+ * `import './styles.css'` 之后再 `import './theme-overrides/composer.css'`)。
+ * 颜色只使用 styles.css :root / [data-theme="light"] 里定义的 CSS 变量,不硬编码颜色。
+ * 因为主文件大量使用 !important,这里也必须用 !important 才能覆盖生效。
+ */
+
+/* ===== 输入区外层包装 ===== */
+.chat-input-wrap {
+  position: relative !important;
+  padding: 16px 24px 20px !important;
+  background: var(--surface) !important;
+  border-top: 1px solid var(--cm-border-default) !important;
+  box-shadow: none !important;
+}
+
+/* ===== 输入区容器 (chat-input) ===== */
+.chat-input {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 9px !important;
+  width: 100% !important;
+  max-width: 900px !important;
+  margin: 0 auto !important;
+  box-sizing: border-box !important;
+  background: var(--cm-surface-panel-elevated) !important;
+  border: 1px solid var(--cm-border-heavy) !important;
+  border-radius: 20px !important;
+  padding: 10px 12px !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  box-shadow: var(--shadow-soft) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease !important;
+}
+.chat-input.busy {
+  background: var(--cm-surface-panel-elevated) !important;
+  border-color: var(--cm-border-strong) !important;
+  box-shadow: var(--shadow-tight) !important;
+}
+.chat-input:focus-within {
+  border-color: var(--cm-border-heavy) !important;
+  box-shadow: var(--shadow-soft) !important;
+  transform: none !important;
+}
+
+/* ===== 输入行布局 ===== */
+.composer-input-row { display: flex !important; align-items: flex-end !important; gap: 10px !important; width: 100% !important; }
+.composer-input-center { flex: 1 !important; display: flex !important; flex-direction: column !important; gap: 8px !important; min-width: 0 !important; }
+
+/* ===== textarea ===== */
+.chat-input textarea {
+  flex: none !important; width: 100% !important; border: none !important; outline: none !important; resize: none !important;
+  font-size: 14px !important; line-height: 1.5 !important;
+  color: var(--cm-text-primary) !important; background: transparent !important;
+  min-height: 28px !important; max-height: 200px !important; padding: 6px 4px !important;
+  white-space: pre-wrap !important; word-break: break-word !important; overflow-wrap: break-word !important;
+}
+.chat-input textarea::placeholder { color: var(--cm-text-faint) !important; }
+.chat-input textarea:disabled { cursor: not-allowed !important; color: var(--cm-text-muted) !important; -webkit-text-fill-color: var(--cm-text-muted) !important; }
+
+/* ===== 附件按钮 (attach-btn) ===== */
+.chat-input .attach-btn {
+  width: 28px !important; height: 28px !important; padding: 0 !important; flex-shrink: 0 !important; margin-bottom: 2px !important;
+  border: 1px solid var(--cm-border-strong) !important; border-radius: 999px !important;
+  background: var(--cm-surface-panel-strong) !important; color: var(--cm-text-muted) !important;
+  display: flex !important; align-items: center !important; justify-content: center !important;
+  box-shadow: none !important; transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
+}
+.chat-input .attach-btn:hover:not(:disabled) {
+  background: var(--cm-surface-panel-active) !important; color: var(--cm-text-strong) !important; border-color: var(--cm-border-emphasis) !important;
+}
+.chat-input .attach-btn:disabled { opacity: 0.5 !important; cursor: not-allowed !important; background: var(--cm-surface-panel-soft) !important; color: var(--cm-text-faint) !important; border-color: var(--cm-border-subtle) !important; }
+
+/* ===== 发送 / 停止按钮 ===== */
+.composer-input-actions { display: flex !important; align-items: center !important; gap: 8px !important; flex-shrink: 0 !important; margin-bottom: 2px !important; }
+.chat-input .send-btn {
+  width: 30px !important; height: 30px !important; padding: 0 !important;
+  border: 1px solid var(--cm-border-emphasis) !important; border-radius: 999px !important;
+  background: var(--cm-surface-panel-strong) !important; color: var(--cm-text-strong) !important;
+  display: flex !important; align-items: center !important; justify-content: center !important;
+  box-shadow: none !important; transform: none !important;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease !important;
+}
+.chat-input .send-btn:hover:not(:disabled) { background: var(--cm-surface-panel-active) !important; color: var(--cm-text-emphasis) !important; border-color: var(--cm-border-heavy) !important; }
+.chat-input .send-btn:disabled { background: var(--cm-surface-panel-soft) !important; color: var(--cm-text-faint) !important; border-color: var(--cm-border-subtle) !important; cursor: not-allowed !important; }
+.chat-input .send-btn.stop-mode {
+  background: var(--status-error) !important; border-color: var(--status-error) !important; color: #ffffff !important;
+  box-shadow: none !important; transform: none !important;
+}
+.chat-input .send-btn.stop-mode:hover { background: var(--status-error) !important; border-color: var(--status-error) !important; opacity: 0.9 !important; }
+.chat-input .send-btn.stop-mode.force-stop { animation: none !important; }
+.chat-input .send-btn.stop-mode .composer-action-stop-square,
+.chat-input .send-btn.stop-mode .stop-dot { background: currentColor !important; }
+.chat-input .send-btn.stop-mode .composer-action-spinner {
+  border-color: rgba(255, 255, 255, 0.35) !important; border-top-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* ===== 图片缩略图预览 ===== */
+.composer-image-previews {
+  display: flex !important; flex-wrap: wrap !important; gap: 8px !important; padding: 4px 2px !important; margin-bottom: 4px !important;
+  width: 100% !important; border-bottom: 1px solid var(--cm-border-subtle) !important;
+}
+.image-preview-card {
+  width: 56px !important; height: 56px !important; border-radius: 10px !important; overflow: hidden !important;
+  background: var(--surface-soft) !important; border: 1px solid var(--cm-border-subtle) !important;
+  box-shadow: none !important; transition: transform 0.15s ease, border-color 0.15s ease !important; cursor: zoom-in !important;
+}
+.image-preview-card:hover { transform: scale(1.05) !important; border-color: var(--cm-border-emphasis) !important; }
+.image-preview-card img { width: 100% !important; height: 100% !important; object-fit: cover !important; }
+.remove-image-btn {
+  position: absolute !important; top: 4px !important; right: 4px !important; width: 16px !important; height: 16px !important;
+  border-radius: 999px !important; background: var(--status-error) !important; border: none !important; color: #ffffff !important;
+  display: flex !important; align-items: center !important; justify-content: center !important; cursor: pointer !important;
+  opacity: 0 !important; transform: scale(0.8) !important; transition: opacity 0.15s ease, transform 0.15s ease !important; z-index: 5 !important;
+}
+.image-preview-card:hover .remove-image-btn { opacity: 1 !important; transform: scale(1) !important; }
+
+/* ===== 附件 / 技能 chips (pill) ===== */
+.composer-chips { display: flex !important; flex-wrap: wrap !important; gap: 6px !important; width: 100% !important; margin-top: 4px !important; }
+.composer-chip {
+  display: inline-flex !important; align-items: center !important; gap: 6px !important; padding: 3px 9px !important;
+  border-radius: 999px !important; background: var(--cm-surface-card) !important; border: 1px solid var(--cm-border-subtle) !important;
+  color: var(--cm-text-muted) !important; font-size: 11.5px !important; line-height: 1.2 !important; box-shadow: none !important;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease !important;
+}
+.composer-chip:hover { background: var(--cm-surface-panel-active) !important; border-color: var(--cm-border-default) !important; color: var(--cm-text-strong) !important; }
+.composer-chip svg { flex-shrink: 0 !important; color: var(--cm-text-faint) !important; width: 12px !important; height: 12px !important; }
+.composer-chip span { min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.composer-chip em { font-style: normal !important; color: var(--cm-text-faint) !important; font-size: 11px !important; flex-shrink: 0 !important; }
+.composer-chip button {
+  display: flex !important; align-items: center !important; justify-content: center !important; width: 16px !important; height: 16px !important;
+  border-radius: 999px !important; background: transparent !important; border: none !important; color: var(--cm-text-faint) !important; flex-shrink: 0 !important; cursor: pointer !important;
+}
+.composer-chip button:hover { background: var(--status-error) !important; color: #ffffff !important; }
+.composer-chip.image-chip { background: var(--cm-surface-card) !important; border-color: var(--cm-border-default) !important; color: var(--cm-text-primary) !important; }
+.composer-chip.image-chip svg { color: var(--accent) !important; }
+.composer-chip.skill-chip { background: var(--cm-surface-card) !important; border-color: var(--cm-border-strong) !important; color: var(--cm-text-strong) !important; }
+.composer-chip.skill-chip svg { color: var(--accent-strong) !important; }
+
+/* ===== Autocomplete 菜单 (斜杠命令 / skills 建议) ===== */
+.slash-commands-menu,
+.slash-commands-menu.glass-morphism,
+.skills-suggestions-menu,
+.skills-suggestions-menu.glass-morphism {
+  position: absolute !important; bottom: calc(100% + 6px) !important;
+  left: var(--composer-padding-x, 24px) !important; right: var(--composer-padding-x, 24px) !important;
+  z-index: 1000 !important; overflow: hidden !important;
+  background: var(--surface) !important; border: 1px solid var(--cm-border-strong) !important;
+  border-radius: 16px !important; box-shadow: var(--shadow-soft) !important;
+  backdrop-filter: none !important; -webkit-backdrop-filter: none !important;
+  display: flex !important; flex-direction: column !important; max-height: 280px !important;
+}
+.slash-commands-list, .skills-suggestions-list { max-height: 240px !important; overflow-y: auto !important; padding: 6px !important; gap: 2px !important; display: flex !important; flex-direction: column !important; }
+.slash-commands-list::-webkit-scrollbar, .skills-suggestions-list::-webkit-scrollbar { width: 6px !important; }
+.slash-commands-list::-webkit-scrollbar-thumb, .skills-suggestions-list::-webkit-scrollbar-thumb { background: var(--cm-border-strong) !important; border-radius: 99px !important; }
+.slash-command-item, .skill-suggestion-item {
+  position: relative !important; display: flex !important; align-items: center !important; gap: 10px !important;
+  padding: 8px 10px !important; border-radius: 10px !important; cursor: pointer !important;
+  transition: background 0.12s ease, color 0.12s ease !important; color: var(--cm-text-primary) !important;
+}
+.slash-command-item:hover, .slash-command-item.active, .skill-suggestion-item:hover, .skill-suggestion-item.active {
+  background: var(--cm-surface-panel-active) !important; padding-left: 14px !important; color: var(--cm-text-strong) !important;
+}
+.slash-command-item.active::before, .skill-suggestion-item.active::before {
+  content: '' !important; position: absolute !important; left: 4px !important; top: 8px !important; bottom: 8px !important;
+  width: 3px !important; border-radius: 99px !important; background: var(--accent) !important;
+}
+.slash-command-item .command-name, .skill-suggestion-item .skill-name { flex-shrink: 0 !important; min-width: 90px !important; font-size: 13px !important; font-weight: 600 !important; color: var(--cm-text-strong) !important; }
+.slash-command-item .command-hint { color: var(--cm-text-faint) !important; font-size: 11px !important; }
+.slash-command-item .command-desc, .skill-suggestion-item .skill-desc { color: var(--cm-text-muted) !important; font-size: 11px !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; }
+.skill-suggestion-item svg { color: var(--accent) !important; flex-shrink: 0 !important; }
+
+/* ===== 状态胶囊条 (chat-status-capsules) ===== */
+.chat-status-capsules {
+  display: flex !important; align-items: center !important; justify-content: space-between !important;
+  max-width: 900px !important; width: 100% !important; margin: 10px auto 0 !important;
+  box-sizing: border-box !important; padding: 0 8px !important; font-size: 11px !important; color: var(--cm-text-muted) !important;
+}
+.capsules-left, .capsules-right { display: flex !important; align-items: center !important; gap: 8px !important; flex-wrap: wrap !important; color: var(--cm-text-muted) !important; }
+.status-capsule {
+  display: inline-flex !important; align-items: center !important; gap: 6px !important; padding: 3px 10px !important;
+  border-radius: 999px !important; background: var(--cm-surface-panel-soft) !important; border: 1px solid var(--cm-border-subtle) !important;
+  color: var(--cm-text-muted) !important; font-size: 11px !important; font-weight: 550 !important;
+  box-shadow: none !important; cursor: default !important;
+}
+.status-capsule svg, .status-capsule .git-icon { width: 12px !important; height: 12px !important; color: var(--cm-text-faint) !important; }
+.status-capsule:hover { background: var(--cm-surface-panel-active) !important; border-color: var(--cm-border-default) !important; color: var(--cm-text-primary) !important; }
+.permission-capsule { cursor: pointer !important; }
+.permission-capsule.full { background: var(--cm-surface-panel-soft) !important; border-color: var(--status-success) !important; color: var(--status-success) !important; }
+.permission-capsule.full svg { color: var(--status-success) !important; }

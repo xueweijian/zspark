@@ -19,11 +19,15 @@ const MIN_PLAN_PANEL_HEIGHT = 120
 const MAX_PLAN_PANEL_HEIGHT = 480
 const DEFAULT_PLAN_PANEL_HEIGHT = 220
 
+// 中栏 chat/diff 分屏分割位置百分比(横向拖拽,20%-80%)。
+const MIN_CHAT_DIFF_SPLIT_PERCENT = 20
+const MAX_CHAT_DIFF_SPLIT_PERCENT = 80
+
 const LS_KEY_SIDEBAR_WIDTH = 'zspark.sidebarWidth'
 const LS_KEY_RIGHT_PANEL_WIDTH = 'zspark.rightPanelWidth'
 const LS_KEY_PLAN_PANEL_HEIGHT = 'zspark.planPanelHeight'
 
-type ResizeType = 'sidebar' | 'right-panel' | 'plan-panel'
+type ResizeType = 'sidebar' | 'right-panel' | 'plan-panel' | 'chat-diff-split'
 
 interface ResizeState {
   type: ResizeType
@@ -31,6 +35,10 @@ interface ResizeState {
   startY: number
   startWidth: number
   startHeight: number
+  // chat-diff-split 专用:拖拽起始时中栏(.chat)容器宽度,用于把像素位移换算成百分比。
+  startContainerWidth?: number
+  // chat-diff-split 专用:拖拽起始时的分割百分比。
+  startPercent?: number
 }
 
 // CSS 变量名与单位映射:拖拽时通过 el.style.setProperty 直接写这些变量。
@@ -38,6 +46,7 @@ const CSS_VAR_MAP: Record<ResizeType, { prop: string; unit: string }> = {
   sidebar: { prop: '--sidebar-width', unit: 'px' },
   'right-panel': { prop: '--right-panel-width', unit: 'px' },
   'plan-panel': { prop: '--plan-panel-height', unit: 'px' },
+  'chat-diff-split': { prop: '--chat-diff-split-position-percent', unit: '%' },
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -64,13 +73,24 @@ export interface UseResizablePanels {
   onSidebarResizeStart: (event: ReactMouseEvent) => void
   onRightPanelResizeStart: (event: ReactMouseEvent) => void
   onPlanPanelResizeStart: (event: ReactMouseEvent) => void
+  onChatDiffSplitResizeStart: (event: ReactMouseEvent) => void
 }
 
 /**
- * 管理左栏/右栏宽度 + Plan 面板高度,零重渲染拖拽 + localStorage 持久化。
+ * 管理左栏/右栏宽度 + Plan 面板高度 + chat/diff 分屏位置,零重渲染拖拽 + localStorage 持久化。
  * 折叠态由调用方处理(把宽度变量覆盖为 0),本 hook 只负责连续拖拽。
+ *
+ * chat-diff-split 的分割百分比的「真值」由 uiStore.chatDiffSplitPercent 管理(供 JSX 渲染层读取),
+ * 本 hook 在拖拽期间只实时写 CSS 变量(--chat-diff-split-position-percent),松手时通过
+ * onChatDiffSplitCommit 回调把最终值交还 uiStore 持久化。
  */
-export function useResizablePanels(): UseResizablePanels {
+export function useResizablePanels(options?: {
+  chatDiffSplitPercent: number
+  onChatDiffSplitCommit?: (percent: number) => void
+}): UseResizablePanels {
+  const chatDiffSplitPercent = options?.chatDiffSplitPercent ?? 50
+  const onChatDiffSplitCommit = options?.onChatDiffSplitCommit
+
   const [sidebarWidth, setSidebarWidth] = useState(() =>
     readStoredWidth(LS_KEY_SIDEBAR_WIDTH, DEFAULT_SIDEBAR_WIDTH, MIN_SIDEBAR_WIDTH, MAX_SIDEBAR_WIDTH),
   )
@@ -88,6 +108,11 @@ export function useResizablePanels(): UseResizablePanels {
   // 拖拽中的实时值:mouseup 时灌回 state。
   const liveValueRef = useRef<number | null>(null)
   const appRef = useRef<HTMLDivElement>(null)
+  // chat-diff-split 的 commit 回调用 ref 持有,避免全局 effect 因回调变化重新注册。
+  const chatDiffSplitCommitRef = useRef(onChatDiffSplitCommit)
+  useEffect(() => {
+    chatDiffSplitCommitRef.current = onChatDiffSplitCommit
+  })
 
   // 持久化:松手(setState)后才写 localStorage。
   useEffect(() => {
@@ -123,12 +148,23 @@ export function useResizablePanels(): UseResizablePanels {
           MIN_RIGHT_PANEL_WIDTH,
           MAX_RIGHT_PANEL_WIDTH,
         )
-      } else {
+      } else if (resize.type === 'plan-panel') {
         // plan-panel 贴底:向上拖增大。
         next = clamp(
           resize.startHeight - (event.clientY - resize.startY),
           MIN_PLAN_PANEL_HEIGHT,
           MAX_PLAN_PANEL_HEIGHT,
+        )
+      } else {
+        // chat-diff-split:横向拖拽,把像素位移换算成百分比(相对于容器宽度),向右拖增大 diff 区。
+        const containerWidth = resize.startContainerWidth ?? 0
+        const deltaPercent = containerWidth > 0
+          ? ((event.clientX - resize.startX) / containerWidth) * 100
+          : 0
+        next = clamp(
+          (resize.startPercent ?? 50) + deltaPercent,
+          MIN_CHAT_DIFF_SPLIT_PERCENT,
+          MAX_CHAT_DIFF_SPLIT_PERCENT,
         )
       }
 
@@ -146,7 +182,8 @@ export function useResizablePanels(): UseResizablePanels {
           // 松手时才把最终值灌回 state(触发一次重渲染 + 持久化)。
           if (resize.type === 'sidebar') setSidebarWidth(finalValue)
           else if (resize.type === 'right-panel') setRightPanelWidth(finalValue)
-          else setPlanPanelHeight(finalValue)
+          else if (resize.type === 'plan-panel') setPlanPanelHeight(finalValue)
+          else if (resize.type === 'chat-diff-split') chatDiffSplitCommitRef.current?.(finalValue)
         }
         resizeRef.current = null
         liveValueRef.current = null
@@ -215,6 +252,29 @@ export function useResizablePanels(): UseResizablePanels {
     [planPanelHeight],
   )
 
+  const onChatDiffSplitResizeStart = useCallback(
+    (event: ReactMouseEvent) => {
+      event.preventDefault()
+      // 中栏(.chat)宽度:百分比位移相对它换算。拖拽柄的最近 .chat 祖先即为基准容器。
+      const root = appRef.current
+      const chatEl = root?.querySelector('.chat') as HTMLElement | null
+      const containerWidth = chatEl?.getBoundingClientRect().width ?? 0
+      resizeRef.current = {
+        type: 'chat-diff-split',
+        startX: event.clientX,
+        startY: event.clientY,
+        startWidth: 0,
+        startHeight: 0,
+        startContainerWidth: containerWidth,
+        startPercent: chatDiffSplitPercent,
+      }
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+      setIsResizing(true)
+    },
+    [chatDiffSplitPercent],
+  )
+
   return {
     appRef,
     isResizing,
@@ -224,5 +284,6 @@ export function useResizablePanels(): UseResizablePanels {
     onSidebarResizeStart,
     onRightPanelResizeStart,
     onPlanPanelResizeStart,
+    onChatDiffSplitResizeStart,
   }
 }

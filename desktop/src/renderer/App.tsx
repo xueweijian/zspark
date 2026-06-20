@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Sidebar } from './Sidebar'
 import { BrowserSurface } from './browser/BrowserSurface'
@@ -26,6 +26,7 @@ import { ChatInput } from './components/chat/ChatInput'
 import { Toasts } from './components/Toasts'
 import { PlanPanel } from './components/PlanPanel'
 import { GitPanel } from './components/git/GitPanel'
+import { CenterDiffLayer } from './components/git/CenterDiffLayer'
 import { useGitPanelController } from './git/useGitPanelController'
 import { IconGitBranch } from './icons'
 import { ImageZoomOverlay } from './components/ImageZoomOverlay'
@@ -513,13 +514,22 @@ function DesktopApp() {
     sidebarCollapsed, toggleSidebarCollapsed,
     rightCollapsed, toggleRightCollapsed,
     rightWidth, setRightWidth,
-    theme, setTheme
+    theme, setTheme,
+    // 中栏 chat/diff 分层
+    centerMode, setCenterMode, toggleCenterMode,
+    splitChatDiffView, toggleSplitChatDiffView,
+    chatDiffSplitPercent, setChatDiffSplitPercent,
+    diffHintDismissed, setDiffHintDismissed,
   } = useUiStore()
-  // 布局尺寸:左/右栏宽度 + Plan 面板高度 + 拖拽 handler(零重渲染 + localStorage 持久化)。
+  // 布局尺寸:左/右栏宽度 + Plan 面板高度 + chat/diff 分屏位置 + 拖拽 handler(零重渲染 + localStorage)。
   const {
     appRef, isResizing, sidebarWidth, rightPanelWidth,
     onSidebarResizeStart, onRightPanelResizeStart, onPlanPanelResizeStart,
-  } = useResizablePanels()
+    onChatDiffSplitResizeStart,
+  } = useResizablePanels({
+    chatDiffSplitPercent,
+    onChatDiffSplitCommit: setChatDiffSplitPercent,
+  })
   // 主题:应用到 <html> data-theme + 持久化
   useThemePreference(theme)
   const {
@@ -541,6 +551,37 @@ function DesktopApp() {
 
   // Git panel controller(需要在 runtime 解构之后,用到 workspaceRoot)
   const gitController = useGitPanelController(runtime.workspaceRoot || '')
+
+  // ===== 中栏 chat/diff 分层辅助 =====
+  // 单看模式下哪层可见:splitChatDiffView 时两层都参与分屏,各自半可见。
+  const chatLayerActive = splitChatDiffView ? true : centerMode === 'chat'
+  const diffLayerActive = splitChatDiffView ? true : centerMode === 'diff'
+  // 计算某层的 className 后缀:分屏时加 content-layer-split + is-active;单看时 is-active/is-hidden。
+  function layerClass(layer: 'chat' | 'diff'): string {
+    if (splitChatDiffView) return ' content-layer-split is-active'
+    return (layer === 'chat' ? chatLayerActive : diffLayerActive) ? ' is-active' : ' is-hidden'
+  }
+  // CenterDiffLayer 的文件列表:合并 staged + unstaged 去重(右栏 Git tab 用的是分区列表,中栏用合并列表更紧凑)。
+  const centerDiffFiles = useMemo(() => {
+    const byPath = new Map<string, import('./components/git/GitPanelShared').GitFileStatus>()
+    for (const f of gitController.stagedFiles) byPath.set(f.path, f)
+    for (const f of gitController.unstagedFiles) if (!byPath.has(f.path)) byPath.set(f.path, f)
+    return [...byPath.values()]
+  }, [gitController.stagedFiles, gitController.unstagedFiles])
+  // Agent 改动事件桥(准实时刷新):复刻 CM 的 queueGitStatusRefresh。
+  // Agent 每完成一个 turn(可能改了文件)后,500ms 防抖刷新 git status,让中栏
+  // diff 提示能在 <1s 出现,而非等 3 秒轮询。gitController.onRefresh 会级联刷 status/diffs/log。
+  const gitRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const queueGitRefresh = useCallback(() => {
+    if (gitRefreshTimerRef.current) clearTimeout(gitRefreshTimerRef.current)
+    gitRefreshTimerRef.current = setTimeout(() => {
+      gitController.onRefresh()
+    }, 500)
+  }, [gitController])
+  useEffect(() => () => { if (gitRefreshTimerRef.current) clearTimeout(gitRefreshTimerRef.current) }, [])
+
+  // Agent 改动提示:有改动文件、当前在 chat 层、且用户未忽略时显示。
+  const showDiffHint = centerDiffFiles.length > 0 && centerMode === 'chat' && !splitChatDiffView && !diffHintDismissed
 
   // 拉取模型列表和协作模式预设
   useModelList(ready)
@@ -1942,6 +1983,8 @@ function DesktopApp() {
             settleTurnRecovery(cur.turnId)
             currentTurn.current = null
           }
+          // turn 结束可能改了文件,防抖刷新 git status/diff(让中栏 diff 提示准实时出现)。
+          queueGitRefresh()
           return
         }
         case 'serverRequest/resolved': {
@@ -3692,7 +3735,13 @@ function DesktopApp() {
         title="拖拽调整宽度,双击折叠/展开"
       />
 
-      <main className="chat">
+      <main className={`chat${splitChatDiffView ? ' content-split' : ''}`}>
+        {/* chat 层:单看模式 centerMode==='chat' 可见;分屏模式始终可见(左半) */}
+        <div
+          className={`content-layer content-layer-chat${layerClass('chat')}`}
+          aria-hidden={!chatLayerActive}
+          {...(!chatLayerActive ? { inert: '' } : {})}
+        >
         <div className="chat-header">
           <div className="layout-toggle-group">
             <button
@@ -3726,6 +3775,18 @@ function DesktopApp() {
               {theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : '🖥️'}
             </button>
           </div>
+          {showDiffHint && (
+            <button
+              type="button"
+              className="chat-diff-hint"
+              onClick={() => setCenterMode('diff')}
+              title="查看 Agent 改动的文件 diff"
+            >
+              <span className="chat-diff-hint-dot" aria-hidden />
+              <span>{centerDiffFiles.length} 个文件已改动</span>
+              <span className="chat-diff-hint-action">查看 Diff</span>
+            </button>
+          )}
           <div className="left chat-breadcrumb">
             <span>{activeSharedWorkspaceName ? t('nav.sharedWorkspace') : t('nav.workspace')}</span>
             <span className="separator">&gt;</span>
@@ -3818,6 +3879,37 @@ function DesktopApp() {
           getAttachmentPreviewUrl={getAttachmentPreviewUrl}
           onFilesDropped={handleFilesDropped}
         />
+        </div>{/* /.content-layer.content-layer-chat */}
+
+        {/* 分屏拖拽柄:仅 splitChatDiffView 时显示 */}
+        {splitChatDiffView && (
+          <div
+            className="content-split-resizer"
+            role="separator"
+            aria-orientation="vertical"
+            aria-label="Resize chat and diff panes"
+            onMouseDown={onChatDiffSplitResizeStart}
+          />
+        )}
+
+        {/* diff 层:单看模式 centerMode==='diff' 可见;分屏模式始终可见(右半) */}
+        <div
+          className={`content-layer content-layer-diff${layerClass('diff')}`}
+          aria-hidden={!diffLayerActive}
+          {...(!diffLayerActive ? { inert: '' } : {})}
+        >
+          <CenterDiffLayer
+            files={centerDiffFiles}
+            diffs={gitController.diffs}
+            selectedPath={gitController.selectedDiffPath}
+            onSelect={gitController.onSelectDiffPath}
+            onExit={() => setCenterMode('chat')}
+            splitMode={splitChatDiffView}
+            onToggleSplit={toggleSplitChatDiffView}
+            isLoading={gitController.diffLoading}
+            error={gitController.diffError}
+          />
+        </div>
       </main>
 
       <aside className={`right${threadPlan && threadPlan.steps.length > 0 ? '' : ' plan-collapsed'}`}>

@@ -46,13 +46,19 @@ export interface BuildTurnOverridesArgs {
   selectedEffort: ReasoningEffort | null
   planModeEnabled: boolean
   collaborationModes: CollaborationModePreset[]
+  /**
+   * model 兜底值(优先级低于 selectedModel):用户没在下拉里主动选过(selectedModel=null)时,
+   * 用这个兜底,避免丢失覆盖导致老 thread 粘住旧 model / 落到 config 默认。
+   * 通常传 runtime.provider?.model ?? runtime.model(设置面板配的或 codex 上报的)。
+   */
+  fallbackModel?: string | null
 }
 
 /**
  * 构建 turn/start 的覆盖参数。返回空对象表示不带任何覆盖。
  *
  * 行为:
- * - plan 关闭:model/effort 若有选中则带在顶层;不带 collaborationMode。
+ * - plan 关闭:始终带 model(仿 CM)——selectedModel ?? fallbackModel;effort 若有选中则带。不带 collaborationMode。
  * - plan 开启:从预设构建 collaborationMode,把当前 model/effort 合并进 settings;
  *   不在顶层带 model/effort(避免被 collaboration 覆盖且产生歧义)。
  */
@@ -61,18 +67,23 @@ export function buildTurnOverrides({
   selectedEffort,
   planModeEnabled,
   collaborationModes,
+  fallbackModel = null,
 }: BuildTurnOverridesArgs): TurnOverrideParams {
+  // 解析出最终生效的 model:用户下拉选中(selectedModel)优先,否则用兜底(设置配的 / codex 上报的)。
+  const effectiveModel = selectedModel ?? fallbackModel ?? null
+
   if (!planModeEnabled) {
     const params: TurnOverrideParams = {}
-    if (selectedModel) params.model = selectedModel
+    // 始终带 model(即使为 null 也显式带,覆盖老 thread 的 sticky model)。
+    if (effectiveModel) params.model = effectiveModel
     if (selectedEffort) params.effort = selectedEffort
     return params
   }
 
   const preset = findPlanPreset(collaborationModes)
   const settings = {
-    // 预设的 model/instructions 优先,用户的 model/effort 作为补充(用户没选则用预设)。
-    model: selectedModel ?? preset.settings?.model ?? null,
+    // 预设的 model/instructions 优先,用户的 effectiveModel/effort 作为补充(用户没选则用预设)。
+    model: effectiveModel ?? preset.settings?.model ?? null,
     reasoning_effort: selectedEffort ?? preset.settings?.reasoning_effort ?? null,
     developer_instructions: preset.settings?.developer_instructions ?? null,
   }

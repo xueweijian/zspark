@@ -241,14 +241,30 @@
 }
 
 /* ============================================================
-   8. 顶部栏(chat-header)— 实色背景,无 backdrop-filter
+   8. 顶部栏(chat-header,对齐 CM MainTopbar 形态)
+   - min-height 44px(对齐 CM --main-topbar-height)
+   - 可拖拽窗口:空白区 -webkit-app-region: drag,按钮 no-drag
+   - 实色背景(不开 backdrop-filter,符合实色策略)
+   注:zspark 的 .chat 是 flex column,chat-header 是 flex 子项,
+   本就固定在顶部不随 chat-stream 滚动,故无需 sticky。
    ============================================================ */
 .chat-header {
   background: var(--surface-topbar) !important;
   backdrop-filter: none !important;
   -webkit-backdrop-filter: none !important;
-  border-bottom: 1px solid var(--cm-border-subtle) !important;
+  border-bottom: 1px solid var(--cm-border-default) !important;
   box-shadow: none !important;
+  min-height: 44px !important;
+  /* 空白区可拖拽窗口(对齐 CM data-tauri-drag-region)。系统标题栏仍在最顶,这里作为额外拖拽区。 */
+  -webkit-app-region: drag !important;
+  z-index: 3 !important;
+}
+/* header 内所有可交互元素恢复 no-drag,否则按钮点不了 */
+.chat-header button,
+.chat-header select,
+.chat-header a,
+.chat-header input {
+  -webkit-app-region: no-drag !important;
 }
 .chat-header .left {
   color: var(--cm-text-strong) !important;

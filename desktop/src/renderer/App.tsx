@@ -542,7 +542,7 @@ function DesktopApp() {
     workspaceFiles, setWorkspaceFiles,
     upsertWorkspaceFiles: storeUpsertWorkspaceFiles,
     // ComposerMetaBar 运行时切换
-    selectedModel, selectedEffort, planModeEnabled, collaborationModes,
+    selectedModel, setSelectedModel, selectedEffort, planModeEnabled, collaborationModes,
     // Plan 面板
     threadPlan, setThreadPlan,
     // 会话状态点
@@ -583,9 +583,23 @@ function DesktopApp() {
   // Agent 改动提示:有改动文件、当前在 chat 层、且用户未忽略时显示。
   const showDiffHint = centerDiffFiles.length > 0 && centerMode === 'chat' && !splitChatDiffView && !diffHintDismissed
 
-  // 拉取模型列表和协作模式预设
-  useModelList(ready)
+  // 拉取模型列表和协作模式预设。
+  // useModelList 传入 providerModel(设置面板配的第三方 model)作为兜底 option,
+  // 即使 model/list 不支持该 provider,下拉框也能选到它。
+  useModelList(ready, runtime.provider?.model ?? runtime.model ?? null)
   useCollaborationModes(ready)
+
+  // selectedModel 初始化(仿 CM):codex ready 且已知 provider.model 后,
+  // 若用户从没在下拉主动选过(selectedModel 仍为 null),则默认设成 provider 配的 model,
+  // 这样发消息时能带上正确的 model 覆盖,而不是粘住老 thread 的旧 model / 落到 config 默认。
+  useEffect(() => {
+    if (ready && selectedModel === null) {
+      const fallback = runtime.provider?.model ?? runtime.model ?? null
+      if (fallback) setSelectedModel(fallback)
+    }
+    // 只在 ready / runtime model 变化时触发,selectedModel 被用户主动改过后就不再覆盖。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, runtime.provider?.model, runtime.model])
 
   // --- Local state (not yet migrated to stores) ---
   const [skills, setSkills] = useState<SkillMeta[]>([])
@@ -3329,6 +3343,9 @@ function DesktopApp() {
         selectedEffort,
         planModeEnabled,
         collaborationModes,
+        // 兜底:用户没在下拉主动选时,用设置配的/codex 上报的 model,避免丢失覆盖
+        // 导致老 thread 粘住旧 model 或落到 config 默认。
+        fallbackModel: runtime.provider?.model ?? runtime.model ?? null,
       })
       const res = await send('turn/start', {
         threadId: targetThreadId,
@@ -3735,13 +3752,7 @@ function DesktopApp() {
         title="拖拽调整宽度,双击折叠/展开"
       />
 
-      <main className={`chat${splitChatDiffView ? ' content-split' : ''}`}>
-        {/* chat 层:单看模式 centerMode==='chat' 可见;分屏模式始终可见(左半) */}
-        <div
-          className={`content-layer content-layer-chat${layerClass('chat')}`}
-          aria-hidden={!chatLayerActive}
-          {...(!chatLayerActive ? { inert: '' } : {})}
-        >
+      <main className="chat">
         <div className="chat-header">
           <div className="layout-toggle-group">
             <button
@@ -3775,18 +3786,6 @@ function DesktopApp() {
               {theme === 'dark' ? '🌙' : theme === 'light' ? '☀️' : '🖥️'}
             </button>
           </div>
-          {showDiffHint && (
-            <button
-              type="button"
-              className="chat-diff-hint"
-              onClick={() => setCenterMode('diff')}
-              title="查看 Agent 改动的文件 diff"
-            >
-              <span className="chat-diff-hint-dot" aria-hidden />
-              <span>{centerDiffFiles.length} 个文件已改动</span>
-              <span className="chat-diff-hint-action">查看 Diff</span>
-            </button>
-          )}
           <div className="left chat-breadcrumb">
             <span>{activeSharedWorkspaceName ? t('nav.sharedWorkspace') : t('nav.workspace')}</span>
             <span className="separator">&gt;</span>
@@ -3879,37 +3878,6 @@ function DesktopApp() {
           getAttachmentPreviewUrl={getAttachmentPreviewUrl}
           onFilesDropped={handleFilesDropped}
         />
-        </div>{/* /.content-layer.content-layer-chat */}
-
-        {/* 分屏拖拽柄:仅 splitChatDiffView 时显示 */}
-        {splitChatDiffView && (
-          <div
-            className="content-split-resizer"
-            role="separator"
-            aria-orientation="vertical"
-            aria-label="Resize chat and diff panes"
-            onMouseDown={onChatDiffSplitResizeStart}
-          />
-        )}
-
-        {/* diff 层:单看模式 centerMode==='diff' 可见;分屏模式始终可见(右半) */}
-        <div
-          className={`content-layer content-layer-diff${layerClass('diff')}`}
-          aria-hidden={!diffLayerActive}
-          {...(!diffLayerActive ? { inert: '' } : {})}
-        >
-          <CenterDiffLayer
-            files={centerDiffFiles}
-            diffs={gitController.diffs}
-            selectedPath={gitController.selectedDiffPath}
-            onSelect={gitController.onSelectDiffPath}
-            onExit={() => setCenterMode('chat')}
-            splitMode={splitChatDiffView}
-            onToggleSplit={toggleSplitChatDiffView}
-            isLoading={gitController.diffLoading}
-            error={gitController.diffError}
-          />
-        </div>
       </main>
 
       <aside className={`right${threadPlan && threadPlan.steps.length > 0 ? '' : ' plan-collapsed'}`}>

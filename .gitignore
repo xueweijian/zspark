@@ -106,3 +106,6 @@ cc-haha-main.zip
 CodexMonitor-main
 CodexMonitor-main.zip
 
+# pull-codex.mjs 临时下载目录
+.codex-dl-tmp/
+

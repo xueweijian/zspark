@@ -534,7 +534,7 @@ function DesktopApp() {
     // ComposerMetaBar 运行时切换
     selectedModel, selectedEffort, planModeEnabled, collaborationModes,
     // Plan 面板
-    setThreadPlan,
+    threadPlan, setThreadPlan,
     // 会话状态点
     markThreadStatus, markThreadUnread,
   } = useRuntimeStore()
@@ -3820,7 +3820,7 @@ function DesktopApp() {
         />
       </main>
 
-      <aside className="right">
+      <aside className={`right${threadPlan && threadPlan.steps.length > 0 ? '' : ' plan-collapsed'}`}>
         <div
           className="right-resize-handle"
           role="separator"

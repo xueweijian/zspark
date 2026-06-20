@@ -81,3 +81,63 @@
 .address-input { border: 1px solid var(--cm-border-default) !important; background: var(--cm-surface-panel-strong) !important; color: var(--cm-text-primary) !important; }
 .address-input:focus { border-color: var(--accent) !important; }
 .browser-viewport-placeholder { background: var(--surface-right-panel) !important; }
+
+/* =====================================================================
+   9. 右栏上下分割布局(对齐 CM main.css 1059-1119)。
+   上段 .right-panel-top(flex:1,放 tabs + 当前 tab 内容),
+   分隔条 .right-panel-divider(row-resize,8px 高),
+   下段 .right-panel-bottom(高度 = --plan-panel-height,放 PlanPanel)。
+   无 plan 时父级 .right 加 plan-collapsed 类,下段高度归零。
+   注:zspark 用 .right(CM 是 .right-panel),内部子元素 className 一致。
+   ===================================================================== */
+.right { display: flex; flex-direction: column; }
+
+.right-panel-top {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.right-panel-divider {
+  position: relative;
+  height: 8px;
+  cursor: row-resize;
+  flex: 0 0 auto;
+}
+.right-panel-divider::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--cm-border-default);
+  opacity: 0.4;
+  transform: translateY(-0.5px);
+}
+.right-panel-divider:hover::after { opacity: 0.9; }
+
+.right-panel-bottom {
+  flex: 0 0 auto;
+  height: var(--plan-panel-height, 220px);
+  /* 与 useResizablePanels 的 clamp 边界(120/480)保持一致,避免拖拽后 CSS 反弹。 */
+  min-height: 120px;
+  max-height: 480px;
+  padding-top: 4px;
+  padding-bottom: 8px;
+  overflow: hidden;
+}
+
+/* 收起态:无执行计划时,右栏父级加 plan-collapsed 类,隐藏下段与分隔条。 */
+.right.plan-collapsed .right-panel-divider { display: none; }
+.right.plan-collapsed .right-panel-bottom {
+  height: 0;
+  min-height: 0;
+  max-height: 0;
+  padding: 0;
+  overflow: hidden;
+}
+.right.plan-collapsed .plan-panel { display: none; }

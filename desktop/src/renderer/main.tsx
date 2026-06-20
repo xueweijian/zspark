@@ -8,6 +8,7 @@ import './theme-overrides/sidebar.css'
 import './theme-overrides/chat.css'
 import './theme-overrides/composer.css'
 import './theme-overrides/right-panel.css'
+import './theme-overrides/plan.css'
 import './theme-overrides/git.css'
 import './i18n'
 

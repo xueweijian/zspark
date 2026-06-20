@@ -27,6 +27,9 @@ export function BrowserSurface({
 
   // 坐标尺寸重设方法：将占位 div 坐标同步到原生 WebContentsView 上
   const reportBounds = () => {
+    // tab 切走时宿主 div 为 display:none,getBoundingClientRect 返回全 0,
+    // 此时不能 reportBounds(会把原生 view 错误定位到 0,0)。
+    if (hidden) return
     const el = hostRef.current
     if (!el) return
     const rect = el.getBoundingClientRect()
@@ -55,12 +58,13 @@ export function BrowserSurface({
     }
   }, [isOpened])
 
-  // 2. 监听宿主遮罩 Modal 弹出状态，隐藏 Native 视口防层级遮挡
+  // 2. 监听宿主遮罩 Modal 弹出状态 + tab 切换,隐藏 Native 视口防层级遮挡。
+  //    tab 切走(hidden=true)时也要 setVisible(false),避免原生 view 透过 React 层显示。
   useEffect(() => {
     if (isOpened) {
-      previewBridge.setVisible(!isOverlayActive)
+      previewBridge.setVisible(!isOverlayActive && !hidden)
     }
-  }, [isOverlayActive, isOpened])
+  }, [isOverlayActive, isOpened, hidden])
 
   // 4. 监听来自主进程/网页 Agent 转发回来的 IPC 事件
   useEffect(() => {

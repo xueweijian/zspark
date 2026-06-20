@@ -12,6 +12,12 @@
    ============================================================================ */
 
 /* 1. 消息列表容器 */
+/* .chat 是中栏外层容器(包含 header/stream/input),必须显式设深色背景,
+   否则主文件 styles.css:168 的 background:var(--bg-elevated) 会露出,
+   在某些主题切换时序下显示为浅色(中间白底 bug 的根因)。 */
+.chat {
+  background: var(--surface-messages) !important;
+}
 .chat-stream {
   flex: 1 !important;
   overflow-y: auto !important;

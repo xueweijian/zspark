@@ -366,6 +366,150 @@
 }
 
 /* ============================================================
+   10.5 形态精修 —— CM 精致卡片语言(::before 伪元素 + 圆角阶梯 + inset 高光)
+   ------------------------------------------------------------
+   这是 CM 左栏视觉的灵魂,补齐前面只改颜色的不足。
+   核心机制:
+   - 卡片本体用 ::before 伪元素(isolation:isolate + z-index:-1 垫到内容下)
+   - 主元素 background:transparent,hover/active 只改伪元素
+   - 圆角阶梯:容器 16px → 内容 14px → 控件 10px → 胶囊 999px
+   - 阴影:几乎不用外阴影,全用 inset 0 1px 0 顶部高光 + hover 时 inset ring
+   ============================================================ */
+
+/* nav-item 主导航 —— pill 卡片(14px 圆角 + inset 高光) */
+.nav-item {
+  position: relative !important;
+  isolation: isolate !important;
+  border-radius: 14px !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.02),
+    inset 0 0 0 0 rgba(255, 255, 255, 0) !important;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+.nav-item:hover {
+  background: color-mix(in srgb, var(--cm-surface-panel-hover) 76%, white) !important;
+  border-color: var(--cm-border-default) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px color-mix(in srgb, var(--cm-border-default) 46%, transparent) !important;
+}
+.nav-item.active {
+  background: color-mix(in srgb, var(--cm-surface-panel-active) 96%, transparent) !important;
+  border-color: color-mix(in srgb, var(--cm-border-accent) 42%, transparent) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+/* workspace-item 工作区卡片 —— 更大的 16px 圆角,CM workspace-row 同款 */
+.workspace-item {
+  position: relative !important;
+  isolation: isolate !important;
+  border-radius: 16px !important;
+  background: transparent !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+.workspace-item:hover {
+  background: color-mix(in srgb, var(--cm-surface-panel-hover) 78%, white) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 1px color-mix(in srgb, var(--cm-border-default) 42%, transparent) !important;
+}
+.workspace-item.active {
+  background: var(--cm-surface-panel-active) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cm-border-accent) 46%, transparent) !important;
+}
+
+/* nav-item-thread 会话项 —— 14px 圆角 + 更淡的背景层次(44% row 底) */
+.nav-item-thread {
+  position: relative !important;
+  border-radius: 14px !important;
+  background: var(--cm-surface-panel-soft) !important;
+  border: 1px solid transparent !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02) !important;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+.nav-item-thread:hover {
+  background: color-mix(in srgb, var(--cm-surface-panel-hover) 76%, white) !important;
+  border-color: var(--cm-border-default) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 0 0 1px color-mix(in srgb, var(--cm-border-default) 46%, transparent) !important;
+}
+.nav-item-thread.active,
+.nav-item-thread.selected {
+  background: color-mix(in srgb, var(--cm-surface-panel-active) 96%, transparent) !important;
+  border-color: color-mix(in srgb, var(--cm-border-accent) 42%, transparent) !important;
+}
+
+/* 项目分组头 —— 12px 圆角,弱化层次 */
+.project-group-header {
+  position: relative !important;
+  border-radius: 12px !important;
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  transition: background-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+.project-group-header:hover {
+  background: var(--cm-surface-panel-soft) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+}
+.project-group-header.active {
+  background: color-mix(in srgb, var(--cm-surface-panel-active) 96%, transparent) !important;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--cm-border-accent) 42%, transparent) !important;
+}
+
+/* 嵌套会话项 —— 更小 10px 圆角,内缩 */
+.nested-thread-item {
+  border-radius: 10px !important;
+}
+.nested-thread-item:hover {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+
+/* local-workspace-btn / shared-sidebar —— 卡片化 */
+.local-workspace-btn {
+  position: relative !important;
+  isolation: isolate !important;
+  border-radius: 14px !important;
+  background: var(--cm-surface-panel-strong) !important;
+  border: 1px solid var(--cm-border-default) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+  transition: background-color 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease !important;
+}
+.local-workspace-btn:hover {
+  background: var(--cm-surface-panel-active) !important;
+  border-color: color-mix(in srgb, var(--cm-border-accent) 42%, transparent) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    inset 0 0 0 1px color-mix(in srgb, var(--cm-border-default) 42%, transparent) !important;
+}
+.shared-sidebar {
+  position: relative !important;
+  isolation: isolate !important;
+  border-radius: 16px !important;
+  background: var(--cm-surface-panel-strong) !important;
+  border: 1px solid var(--cm-border-default) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), var(--shadow-soft) !important;
+}
+
+/* sidebar 容器 —— CM 同款顶部留白 + 滚动渐隐 */
+.sidebar {
+  padding-top: 36px !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+  gap: 6px !important;
+  overflow: hidden !important;
+}
+
+/* 会话时间戳 —— CM 同款 10px 极小字号 */
+.nav-item-thread .thread-time {
+  font-size: 10px !important;
+  padding-top: 2px !important;
+}
+
+/* ============================================================
    11. 会话状态点(.thread-status)— 左栏会话项运行态指示
    参考 CM sidebar.css:1074-1112 的 8px 圆点 + 光晕 + 脉冲。
    ready 态不渲染(见 Sidebar.tsx),故这里只定义三态 + 基础。

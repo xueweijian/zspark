@@ -8,12 +8,15 @@ import { computeWebviewBounds } from './computeWebviewBounds'
 interface BrowserSurfaceProps {
   initialUrl?: string
   isOverlayActive?: boolean
+  /** tab 切走时为 true,触发原生 view 隐藏(配合 display:none 的占位 div)。 */
+  hidden?: boolean
   onSelection: (payload: any) => void
 }
 
 export function BrowserSurface({
   initialUrl = '',
   isOverlayActive = false,
+  hidden = false,
   onSelection
 }: BrowserSurfaceProps) {
   const hostRef = useRef<HTMLDivElement>(null)

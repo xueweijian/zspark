@@ -14,21 +14,30 @@ const MIN_RIGHT_PANEL_WIDTH = 270
 const MAX_RIGHT_PANEL_WIDTH = 800
 const DEFAULT_RIGHT_PANEL_WIDTH = 320 // 修正 CM 里 default(230)<min(270) 的怪异点
 
+// 右栏下段 Plan 面板高度(竖向拖拽)。
+const MIN_PLAN_PANEL_HEIGHT = 120
+const MAX_PLAN_PANEL_HEIGHT = 480
+const DEFAULT_PLAN_PANEL_HEIGHT = 220
+
 const LS_KEY_SIDEBAR_WIDTH = 'zspark.sidebarWidth'
 const LS_KEY_RIGHT_PANEL_WIDTH = 'zspark.rightPanelWidth'
+const LS_KEY_PLAN_PANEL_HEIGHT = 'zspark.planPanelHeight'
 
-type ResizeType = 'sidebar' | 'right-panel'
+type ResizeType = 'sidebar' | 'right-panel' | 'plan-panel'
 
 interface ResizeState {
   type: ResizeType
   startX: number
+  startY: number
   startWidth: number
+  startHeight: number
 }
 
 // CSS 变量名与单位映射:拖拽时通过 el.style.setProperty 直接写这些变量。
 const CSS_VAR_MAP: Record<ResizeType, { prop: string; unit: string }> = {
   sidebar: { prop: '--sidebar-width', unit: 'px' },
   'right-panel': { prop: '--right-panel-width', unit: 'px' },
+  'plan-panel': { prop: '--plan-panel-height', unit: 'px' },
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -51,12 +60,14 @@ export interface UseResizablePanels {
   isResizing: boolean
   sidebarWidth: number
   rightPanelWidth: number
+  planPanelHeight: number
   onSidebarResizeStart: (event: ReactMouseEvent) => void
   onRightPanelResizeStart: (event: ReactMouseEvent) => void
+  onPlanPanelResizeStart: (event: ReactMouseEvent) => void
 }
 
 /**
- * 管理左栏/右栏宽度,零重渲染拖拽 + localStorage 持久化。
+ * 管理左栏/右栏宽度 + Plan 面板高度,零重渲染拖拽 + localStorage 持久化。
  * 折叠态由调用方处理(把宽度变量覆盖为 0),本 hook 只负责连续拖拽。
  */
 export function useResizablePanels(): UseResizablePanels {
@@ -65,6 +76,9 @@ export function useResizablePanels(): UseResizablePanels {
   )
   const [rightPanelWidth, setRightPanelWidth] = useState(() =>
     readStoredWidth(LS_KEY_RIGHT_PANEL_WIDTH, DEFAULT_RIGHT_PANEL_WIDTH, MIN_RIGHT_PANEL_WIDTH, MAX_RIGHT_PANEL_WIDTH),
+  )
+  const [planPanelHeight, setPlanPanelHeight] = useState(() =>
+    readStoredWidth(LS_KEY_PLAN_PANEL_HEIGHT, DEFAULT_PLAN_PANEL_HEIGHT, MIN_PLAN_PANEL_HEIGHT, MAX_PLAN_PANEL_HEIGHT),
   )
 
   const [isResizing, setIsResizing] = useState(false)
@@ -82,6 +96,9 @@ export function useResizablePanels(): UseResizablePanels {
   useEffect(() => {
     localStorage.setItem(LS_KEY_RIGHT_PANEL_WIDTH, String(rightPanelWidth))
   }, [rightPanelWidth])
+  useEffect(() => {
+    localStorage.setItem(LS_KEY_PLAN_PANEL_HEIGHT, String(planPanelHeight))
+  }, [planPanelHeight])
 
   // 全局 mousemove/mouseup:只注册一次。
   useEffect(() => {
@@ -99,12 +116,19 @@ export function useResizablePanels(): UseResizablePanels {
           MIN_SIDEBAR_WIDTH,
           MAX_SIDEBAR_WIDTH,
         )
-      } else {
+      } else if (resize.type === 'right-panel') {
         // 右栏贴右:向右拖减小。
         next = clamp(
           resize.startWidth - (event.clientX - resize.startX),
           MIN_RIGHT_PANEL_WIDTH,
           MAX_RIGHT_PANEL_WIDTH,
+        )
+      } else {
+        // plan-panel 贴底:向上拖增大。
+        next = clamp(
+          resize.startHeight - (event.clientY - resize.startY),
+          MIN_PLAN_PANEL_HEIGHT,
+          MAX_PLAN_PANEL_HEIGHT,
         )
       }
 
@@ -121,7 +145,8 @@ export function useResizablePanels(): UseResizablePanels {
         if (finalValue !== null) {
           // 松手时才把最终值灌回 state(触发一次重渲染 + 持久化)。
           if (resize.type === 'sidebar') setSidebarWidth(finalValue)
-          else setRightPanelWidth(finalValue)
+          else if (resize.type === 'right-panel') setRightPanelWidth(finalValue)
+          else setPlanPanelHeight(finalValue)
         }
         resizeRef.current = null
         liveValueRef.current = null
@@ -145,7 +170,9 @@ export function useResizablePanels(): UseResizablePanels {
       resizeRef.current = {
         type: 'sidebar',
         startX: event.clientX,
+        startY: event.clientY,
         startWidth: sidebarWidth,
+        startHeight: 0,
       }
       document.body.style.cursor = 'col-resize'
       document.body.style.userSelect = 'none'
@@ -160,7 +187,9 @@ export function useResizablePanels(): UseResizablePanels {
       resizeRef.current = {
         type: 'right-panel',
         startX: event.clientX,
+        startY: event.clientY,
         startWidth: rightPanelWidth,
+        startHeight: 0,
       }
       document.body.style.cursor = 'col-resize'
       document.body.style.userSelect = 'none'
@@ -169,12 +198,31 @@ export function useResizablePanels(): UseResizablePanels {
     [rightPanelWidth],
   )
 
+  const onPlanPanelResizeStart = useCallback(
+    (event: ReactMouseEvent) => {
+      event.preventDefault()
+      resizeRef.current = {
+        type: 'plan-panel',
+        startX: event.clientX,
+        startY: event.clientY,
+        startWidth: 0,
+        startHeight: planPanelHeight,
+      }
+      document.body.style.cursor = 'row-resize'
+      document.body.style.userSelect = 'none'
+      setIsResizing(true)
+    },
+    [planPanelHeight],
+  )
+
   return {
     appRef,
     isResizing,
     sidebarWidth,
     rightPanelWidth,
+    planPanelHeight,
     onSidebarResizeStart,
     onRightPanelResizeStart,
+    onPlanPanelResizeStart,
   }
 }

@@ -24,6 +24,7 @@ import { clearDisplayedArtifactRevisions, rememberDisplayedArtifactRevisions, sh
 import { MessageList } from './components/chat/MessageList'
 import { ChatInput } from './components/chat/ChatInput'
 import { Toasts } from './components/Toasts'
+import { PlanPanel } from './components/PlanPanel'
 import { ImageZoomOverlay } from './components/ImageZoomOverlay'
 import { SettingsModal, newMcpDraft, mcpStartupLabels } from './components/SettingsModal'
 import { useChatStore } from './store/chatStore'
@@ -511,10 +512,10 @@ function DesktopApp() {
     rightWidth, setRightWidth,
     theme, setTheme
   } = useUiStore()
-  // 布局尺寸:左/右栏宽度 + 拖拽 handler(零重渲染 + localStorage 持久化)。
+  // 布局尺寸:左/右栏宽度 + Plan 面板高度 + 拖拽 handler(零重渲染 + localStorage 持久化)。
   const {
     appRef, isResizing, sidebarWidth, rightPanelWidth,
-    onSidebarResizeStart, onRightPanelResizeStart,
+    onSidebarResizeStart, onRightPanelResizeStart, onPlanPanelResizeStart,
   } = useResizablePanels()
   // 主题:应用到 <html> data-theme + 持久化
   useThemePreference(theme)
@@ -529,6 +530,8 @@ function DesktopApp() {
     upsertWorkspaceFiles: storeUpsertWorkspaceFiles,
     // ComposerMetaBar 运行时切换
     selectedModel, selectedEffort, planModeEnabled, collaborationModes,
+    // Plan 面板
+    setThreadPlan,
     // 会话状态点
     markThreadStatus, markThreadUnread,
   } = useRuntimeStore()
@@ -1939,6 +1942,22 @@ function DesktopApp() {
           if (params?.requestId !== undefined) resolveApprovalRequest(params.requestId)
           return
         }
+        case 'turn/plan/updated': {
+          // codex 推送的执行计划(权威)。存入 store,PlanPanel 渲染。
+          const planSteps = Array.isArray(params?.plan) ? params.plan : []
+          const eventThreadId = String(params?.threadId ?? '')
+          // 仅当前 thread 的 plan 才更新(后台 thread 的 plan 不在右栏展示)。
+          if (eventThreadId && threadRef.current && eventThreadId !== threadRef.current) return
+          setThreadPlan({
+            turnId: String(params?.turnId ?? '') || undefined,
+            explanation: params?.explanation ?? null,
+            steps: planSteps.map((s: any) => ({
+              step: String(s?.step ?? ''),
+              status: (s?.status === 'completed' ? 'completed' : s?.status === 'inProgress' ? 'inProgress' : 'pending') as 'completed' | 'inProgress' | 'pending',
+            })),
+          })
+          return
+        }
         case 'thread/compacted': {
           const turnId = turnIdFromParams(params)
           if (!turnId) return
@@ -2433,8 +2452,9 @@ function DesktopApp() {
   }
   const switchLocalThread = async (id: string, options: { startNewOnMissingRollout?: boolean } = {}) => {
     if (!ready) return false
-    // 切换到该 thread 时清除未读标记。
+    // 切换到该 thread 时清除未读标记 + 重置执行计划。
     markThreadUnread(id, false)
+    setThreadPlan(null)
     const seq = switchThreadSeq.current + 1
     switchThreadSeq.current = seq
     stickToBottom.current = true
@@ -3805,13 +3825,14 @@ function DesktopApp() {
           title="拖拽调整宽度,双击折叠/展开"
         />
 
-        <div className="aside-tabs">
-          <button className={rightActiveTab === 'files' ? 'active' : ''} onClick={() => setRightActiveTab('files')}>文件</button>
-          <button className={rightActiveTab === 'browser' ? 'active' : ''} onClick={() => setRightActiveTab('browser')}>浏览器</button>
-        </div>
+        <div className="right-panel-top">
+          <div className="aside-tabs">
+            <button className={rightActiveTab === 'files' ? 'active' : ''} onClick={() => setRightActiveTab('files')}>文件</button>
+            <button className={rightActiveTab === 'browser' ? 'active' : ''} onClick={() => setRightActiveTab('browser')}>浏览器</button>
+          </div>
 
-        {rightActiveTab === 'files' ? (
-          <>
+          {/* 文件 tab:常挂载,用 display:none 切换(避免卸载/重挂开销) */}
+          <div className="right-tab-content" style={{ display: rightActiveTab === 'files' ? 'block' : 'none' }}>
             <div className="right-section">
               <h4>Session</h4>
               <div className="kv"><span className="k">{activeSharedWorkspace ? 'Shared' : 'Thread'}</span><span className="v">{activeSharedWorkspace ? (activeSharedSession ? activeSharedSession.slice(0, 8) : '—') : (thread ? thread.slice(0, 8) : '—')}</span></div>
@@ -3890,14 +3911,31 @@ function DesktopApp() {
                 </div>
               )}
             </div>
-          </>
-        ) : (
-          <BrowserSurface
-            initialUrl=""
-            isOverlayActive={showSettings || !!zoomedImage || panel !== null}
-            onSelection={handleBrowserSelection}
-          />
-        )}
+          </div>
+
+          {/* 浏览器 tab:常挂载,用 display:none 切换,保护原生 WebContentsView 不被卸载。
+              tab 切走时通过 hidden prop 触发 previewBridge.setVisible(false)。 */}
+          <div className="right-tab-content" style={{ display: rightActiveTab === 'browser' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+            <BrowserSurface
+              initialUrl=""
+              hidden={rightActiveTab !== 'browser'}
+              isOverlayActive={showSettings || !!zoomedImage || panel !== null}
+              onSelection={handleBrowserSelection}
+            />
+          </div>
+        </div>
+
+        <div
+          className="right-panel-divider"
+          role="separator"
+          aria-orientation="horizontal"
+          aria-label="Resize plan panel"
+          onMouseDown={onPlanPanelResizeStart}
+        />
+
+        <div className="right-panel-bottom">
+          <PlanPanel />
+        </div>
       </aside>
 
 

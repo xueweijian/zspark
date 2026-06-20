@@ -24,6 +24,18 @@ export interface CollaborationModePreset {
 
 export type ReasoningEffort = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh'
 
+// turn/plan/updated 通知的数据结构(对齐 codex app-server v2/turn.rs:348-370)。
+export type TurnPlanStepStatus = 'pending' | 'inProgress' | 'completed'
+export interface TurnPlanStep {
+  step: string
+  status: TurnPlanStepStatus
+}
+export interface TurnPlan {
+  turnId?: string
+  explanation?: string | null
+  steps: TurnPlanStep[]
+}
+
 interface RuntimeState {
   thread: string | null
   ready: boolean
@@ -38,6 +50,8 @@ interface RuntimeState {
   selectedModel: string | null
   selectedEffort: ReasoningEffort | null
   planModeEnabled: boolean
+  // 当前 thread 的执行计划(由 turn/plan/updated 事件维护)
+  threadPlan: TurnPlan | null
 }
 
 interface RuntimeActions {
@@ -54,6 +68,7 @@ interface RuntimeActions {
   setSelectedModel: (v: string | null) => void
   setSelectedEffort: (v: ReasoningEffort | null) => void
   setPlanModeEnabled: (v: boolean) => void
+  setThreadPlan: (v: TurnPlan | null) => void
   // 会话状态点(thread-status/changed 维护)+ 未读标记
   markThreadStatus: (threadId: string, status: import('../appTypes').ThreadStatus) => void
   markThreadUnread: (threadId: string, unread: boolean) => void
@@ -74,6 +89,7 @@ export const useRuntimeStore = create<RuntimeStore>((set) => ({
   selectedModel: null,
   selectedEffort: null,
   planModeEnabled: false,
+  threadPlan: null,
 
   setThread: (v) => set({ thread: v }),
   setReady: (v) => set({ ready: v }),
@@ -112,6 +128,7 @@ export const useRuntimeStore = create<RuntimeStore>((set) => ({
   setSelectedModel: (v) => set({ selectedModel: v }),
   setSelectedEffort: (v) => set({ selectedEffort: v }),
   setPlanModeEnabled: (v) => set({ planModeEnabled: v }),
+  setThreadPlan: (v) => set({ threadPlan: v }),
   // 按 threadId 更新会话运行态(来自 codex thread/status/changed)。
   // 该 thread 不在列表里则忽略(避免为未知 thread 建空项)。
   markThreadStatus: (threadId, status) => {

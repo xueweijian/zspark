@@ -225,11 +225,6 @@ async fn run_exec_like(args: RunExecLikeArgs) -> Result<FunctionToolOutput, Func
     emitter.begin(event_ctx).await;
 
     let file_system_sandbox_policy = turn.file_system_sandbox_policy();
-    let sandbox_setup_is_complete = if cfg!(windows) {
-        session.codex_home().await.is_ok()
-    } else {
-        true
-    };
     let exec_approval_requirement = session
         .services
         .exec_policy
@@ -245,7 +240,6 @@ async fn run_exec_like(args: RunExecLikeArgs) -> Result<FunctionToolOutput, Func
                 effective_additional_permissions.sandbox_permissions
             },
             prefix_rule,
-            sandbox_setup_is_complete,
         })
         .await;
 

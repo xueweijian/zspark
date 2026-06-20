@@ -88,33 +88,6 @@ fn unmatched_safe_powershell_words_are_allowed() {
                 sandbox_permissions: SandboxPermissions::UseDefault,
                 used_complex_parsing: false,
                 command_origin: ExecPolicyCommandOrigin::PowerShell,
-                sandbox_setup_is_complete: true,
-            },
-        )
-    );
-}
-
-#[test]
-fn unmatched_command_lacks_sandbox_protections_when_sandbox_not_ready() {
-    let command = vec!["Get-Content".to_string(), "Cargo.toml".to_string()];
-
-    // Even if it is safe powershell words, if sandbox setup is not complete,
-    // environment lacks sandbox protections is true, thus returning Decision::Prompt on Windows.
-    assert_eq!(
-        Decision::Prompt,
-        render_decision_for_unmatched_command(
-            &command,
-            UnmatchedCommandContext {
-                approval_policy: AskForApproval::UnlessTrusted,
-                permission_profile: &permission_profile_from_sandbox_policy(
-                    &SandboxPolicy::new_read_only_policy(),
-                ),
-                file_system_sandbox_policy: &read_only_file_system_sandbox_policy(),
-                sandbox_cwd: Path::new("/tmp"),
-                sandbox_permissions: SandboxPermissions::UseDefault,
-                used_complex_parsing: false,
-                command_origin: ExecPolicyCommandOrigin::PowerShell,
-                sandbox_setup_is_complete: false,
             },
         )
     );

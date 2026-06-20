@@ -8,7 +8,7 @@ interface UiState {
   toasts: Toast[]
   showPermissionMenu: boolean
   showJumpToLatest: boolean
-  rightActiveTab: 'files' | 'browser'
+  rightActiveTab: 'files' | 'browser' | 'git'
   // 折叠态:由布局壳驱动,折叠时 CSS 变量被覆盖为 0(实际宽度由 useResizablePanels 管)。
   sidebarCollapsed: boolean
   rightCollapsed: boolean
@@ -24,7 +24,7 @@ interface UiActions {
   setToasts: React.Dispatch<React.SetStateAction<Toast[]>>
   setShowPermissionMenu: (v: boolean) => void
   setShowJumpToLatest: (v: boolean) => void
-  setRightActiveTab: (v: 'files' | 'browser') => void
+  setRightActiveTab: (v: 'files' | 'browser' | 'git') => void
   setSidebarCollapsed: (v: boolean) => void
   toggleSidebarCollapsed: () => void
   setRightCollapsed: (v: boolean) => void

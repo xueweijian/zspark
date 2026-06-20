@@ -18,6 +18,7 @@ import {
   type McpServerEntry
 } from './mcpServers'
 import { redactProcessArgsForLog, redactSensitiveLogLine, redactSensitiveLogText } from './logRedaction'
+import * as gitService from './gitService'
 import {
   decryptSensitiveMcpEnvWithIssues,
   encryptSensitiveMcpEnv,
@@ -1618,6 +1619,26 @@ ipcMain.handle('preview:message', (_e, payload: any) => {
   previewService.message(payload)
   return true
 })
+
+// Git IPC handlers
+ipcMain.handle('git:status', (_e, cwd: string) => gitService.getGitStatus(cwd))
+ipcMain.handle('git:diffs', (_e, cwd: string) => gitService.getGitDiffs(cwd))
+ipcMain.handle('git:log', (_e, cwd: string, limit?: number) => gitService.getGitLog(cwd, limit))
+ipcMain.handle('git:commitDiff', (_e, cwd: string, sha: string) => gitService.getGitCommitDiff(cwd, sha))
+ipcMain.handle('git:stageFile', (_e, cwd: string, path: string) => gitService.stageGitFile(cwd, path))
+ipcMain.handle('git:stageAll', (_e, cwd: string) => gitService.stageGitAll(cwd))
+ipcMain.handle('git:unstageFile', (_e, cwd: string, path: string) => gitService.unstageGitFile(cwd, path))
+ipcMain.handle('git:revertFile', (_e, cwd: string, path: string) => gitService.revertGitFile(cwd, path))
+ipcMain.handle('git:revertAll', (_e, cwd: string) => gitService.revertAllGitChanges(cwd))
+ipcMain.handle('git:commit', (_e, cwd: string, message: string) => gitService.commitGit(cwd, message))
+ipcMain.handle('git:push', (_e, cwd: string) => gitService.pushGit(cwd))
+ipcMain.handle('git:pull', (_e, cwd: string) => gitService.pullGit(cwd))
+ipcMain.handle('git:fetch', (_e, cwd: string) => gitService.fetchGit(cwd))
+ipcMain.handle('git:sync', (_e, cwd: string) => gitService.syncGit(cwd))
+ipcMain.handle('git:listBranches', (_e, cwd: string) => gitService.listGitBranches(cwd))
+ipcMain.handle('git:checkoutBranch', (_e, cwd: string, name: string) => gitService.checkoutGitBranch(cwd, name))
+ipcMain.handle('git:createBranch', (_e, cwd: string, name: string) => gitService.createGitBranch(cwd, name))
+ipcMain.handle('git:remote', (_e, cwd: string) => gitService.getGitRemote(cwd))
 
 
 app.whenReady().then(async () => {

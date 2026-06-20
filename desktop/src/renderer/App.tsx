@@ -25,6 +25,9 @@ import { MessageList } from './components/chat/MessageList'
 import { ChatInput } from './components/chat/ChatInput'
 import { Toasts } from './components/Toasts'
 import { PlanPanel } from './components/PlanPanel'
+import { GitPanel } from './components/git/GitPanel'
+import { useGitPanelController } from './git/useGitPanelController'
+import { IconGitBranch } from './icons'
 import { ImageZoomOverlay } from './components/ImageZoomOverlay'
 import { SettingsModal, newMcpDraft, mcpStartupLabels } from './components/SettingsModal'
 import { useChatStore } from './store/chatStore'
@@ -535,6 +538,9 @@ function DesktopApp() {
     // 会话状态点
     markThreadStatus, markThreadUnread,
   } = useRuntimeStore()
+
+  // Git panel controller(需要在 runtime 解构之后,用到 workspaceRoot)
+  const gitController = useGitPanelController(runtime.workspaceRoot || '')
 
   // 拉取模型列表和协作模式预设
   useModelList(ready)
@@ -3829,6 +3835,7 @@ function DesktopApp() {
           <div className="aside-tabs">
             <button className={rightActiveTab === 'files' ? 'active' : ''} onClick={() => setRightActiveTab('files')}>文件</button>
             <button className={rightActiveTab === 'browser' ? 'active' : ''} onClick={() => setRightActiveTab('browser')}>浏览器</button>
+            <button className={rightActiveTab === 'git' ? 'active' : ''} onClick={() => setRightActiveTab('git')}><IconGitBranch /> Git</button>
           </div>
 
           {/* 文件 tab:常挂载,用 display:none 切换(避免卸载/重挂开销) */}
@@ -3922,6 +3929,11 @@ function DesktopApp() {
               isOverlayActive={showSettings || !!zoomedImage || panel !== null}
               onSelection={handleBrowserSelection}
             />
+          </div>
+
+          {/* Git tab:常挂载,用 display:none 切换 */}
+          <div className="right-tab-content" style={{ display: rightActiveTab === 'git' ? 'flex' : 'none', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
+            <GitPanel controller={gitController} />
           </div>
         </div>
 

@@ -364,3 +364,44 @@
   background: var(--accent) !important;
   box-shadow: 0 0 0 3px var(--accent-soft), 0 2px 6px rgba(0, 0, 0, 0.06) !important;
 }
+
+/* ============================================================
+   11. 会话状态点(.thread-status)— 左栏会话项运行态指示
+   参考 CM sidebar.css:1074-1112 的 8px 圆点 + 光晕 + 脉冲。
+   ready 态不渲染(见 Sidebar.tsx),故这里只定义三态 + 基础。
+   ============================================================ */
+.thread-status {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  margin-left: 2px;
+  box-shadow: 0 0 0 0 currentColor;
+}
+/* processing:橙色 + 脉冲光晕 */
+.thread-status-processing {
+  background: #ff9f43;
+  color: rgba(255, 159, 67, 0.55);
+  animation: thread-status-pulse 1.6s ease-in-out infinite;
+}
+/* reviewing:青色(等待审批/输入)*/
+.thread-status-reviewing {
+  background: #2fd1c4;
+  box-shadow: 0 0 6px rgba(47, 209, 196, 0.55);
+}
+/* unread:蓝色(后台收到新消息)*/
+.thread-status-unread {
+  background: #4da3ff;
+  box-shadow: 0 0 6px rgba(77, 163, 255, 0.5);
+}
+
+@keyframes thread-status-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(255, 159, 67, 0.5); }
+  70%  { box-shadow: 0 0 0 5px rgba(255, 159, 67, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 159, 67, 0); }
+}
+
+/* 减少动效偏好下关闭脉冲(无障碍)*/
+@media (prefers-reduced-motion: reduce) {
+  .thread-status-processing { animation: none; }
+}

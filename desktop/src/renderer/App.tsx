@@ -33,7 +33,10 @@ import { fuzzyFilter } from './utils/fuzzyMatch'
 import { saveDraft, loadDraft, clearDraft, cleanupOldDrafts } from './utils/draftPersistence'
 import { throttle } from './utils/throttle'
 import { useRuntimeStore } from './store/runtimeStore'
-import { useResizablePanels } from './features/layout/hooks/useResizablePanels'
+  import { useModelList } from './hooks/useModelList'
+  import { useCollaborationModes } from './hooks/useCollaborationModes'
+  import { buildTurnOverrides } from './utils/turnOverrides'
+  import { useResizablePanels } from './features/layout/hooks/useResizablePanels'
 import { useThemePreference, type ThemePreference } from './features/theme/useThemePreference'
 import {
   dirname,
@@ -501,7 +504,6 @@ function DesktopApp() {
     panel, setPanel,
     showSettings, setShowSettings,
     toasts, setToasts,
-    showPermissionMenu, setShowPermissionMenu,
     showJumpToLatest, setShowJumpToLatest,
     rightActiveTab, setRightActiveTab,
     sidebarCollapsed, toggleSidebarCollapsed,
@@ -524,8 +526,16 @@ function DesktopApp() {
     permissionLevel, setPermissionLevel,
     threads, setThreads,
     workspaceFiles, setWorkspaceFiles,
-    upsertWorkspaceFiles: storeUpsertWorkspaceFiles
+    upsertWorkspaceFiles: storeUpsertWorkspaceFiles,
+    // ComposerMetaBar 运行时切换
+    selectedModel, selectedEffort, planModeEnabled, collaborationModes,
+    // 会话状态点
+    markThreadStatus, markThreadUnread,
   } = useRuntimeStore()
+
+  // 拉取模型列表和协作模式预设
+  useModelList(ready)
+  useCollaborationModes(ready)
 
   // --- Local state (not yet migrated to stores) ---
   const [skills, setSkills] = useState<SkillMeta[]>([])
@@ -1873,6 +1883,11 @@ function DesktopApp() {
           submitInFlight.current = false
           setSubmitting(false)
           setStreaming(false)
+          // 后台 thread 完成一轮 → 标未读(当前 thread 不标)。
+          const completedThreadId = String(params?.threadId ?? '')
+          if (completedThreadId && completedThreadId !== threadRef.current) {
+            markThreadUnread(completedThreadId, true)
+          }
           const turnId = turnIdFromParams(params)
           if (!turnId) return
           updateTurn(turnId, (t) => {
@@ -1890,8 +1905,13 @@ function DesktopApp() {
         }
         case 'thread/status/changed': {
           const eventThreadId = String(params?.threadId ?? '')
-          if (eventThreadId && threadRef.current && eventThreadId !== threadRef.current) return
           const statusType = params?.status?.type
+          // 所有 thread 都入账状态点(后台 thread 也需要更新运行态)。
+          if (eventThreadId && statusType) {
+            markThreadStatus(eventThreadId, params.status)
+          }
+          // 仅当前 thread 触发 stream 收尾;非当前 thread 已在上面入账,直接返回。
+          if (eventThreadId && threadRef.current && eventThreadId !== threadRef.current) return
           if (!statusType || statusType === 'active') return
           const cur = currentTurn.current
           // Flush throttled updates before ending stream
@@ -2413,6 +2433,8 @@ function DesktopApp() {
   }
   const switchLocalThread = async (id: string, options: { startNewOnMissingRollout?: boolean } = {}) => {
     if (!ready) return false
+    // 切换到该 thread 时清除未读标记。
+    markThreadUnread(id, false)
     const seq = switchThreadSeq.current + 1
     switchThreadSeq.current = seq
     stickToBottom.current = true
@@ -3232,7 +3254,19 @@ function DesktopApp() {
     }
     let accepted = false
     try {
-      const res = await send('turn/start', { threadId: targetThreadId, input: inputItems, ...userApprovalParams(permissionLevel) })
+      // 构建 turn/start 的运行时覆盖参数
+      const overrides = buildTurnOverrides({
+        selectedModel,
+        selectedEffort,
+        planModeEnabled,
+        collaborationModes,
+      })
+      const res = await send('turn/start', {
+        threadId: targetThreadId,
+        input: inputItems,
+        ...userApprovalParams(permissionLevel),
+        ...overrides,
+      })
       if (res.error) {
         if (shouldClearComposer) {
           setInput(text)
@@ -3376,11 +3410,6 @@ function DesktopApp() {
       if (!didRollback) return
     }
     await submit(text, { inputItems: source.input?.length ? source.input : undefined })
-  }
-
-  const changePermissionLevel = (level: 'default' | 'auto' | 'full') => {
-    setPermissionLevel(level)
-    window.zspark.saveSettings({ permissionLevel: level } as any).catch(() => {})
   }
 
   const executeSlashCommand = (cmd: any) => {
@@ -3748,11 +3777,7 @@ function DesktopApp() {
           hasComposerContent={hasComposerContent}
           filteredSlashCommands={filteredSlashCommands}
           filteredSkills={filteredSkills}
-          runtimeProvider={runtimeProvider}
           gitBranch={runtime.gitBranch}
-          tokenUsage={tokenUsage}
-          permissionLevel={permissionLevel}
-          showPermissionMenu={showPermissionMenu}
           taRef={taRef}
           onSubmit={() => submit()}
           onStop={stopTurn}
@@ -3764,8 +3789,6 @@ function DesktopApp() {
           onPaste={handlePaste}
           onExecuteSlashCommand={executeSlashCommand}
           onExecuteSkillSuggestion={executeSkillSuggestion}
-          onChangePermissionLevel={changePermissionLevel}
-          onTogglePermissionMenu={() => setShowPermissionMenu(!showPermissionMenu)}
           getAttachmentPreviewUrl={getAttachmentPreviewUrl}
           onFilesDropped={handleFilesDropped}
         />

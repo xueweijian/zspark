@@ -109,3 +109,10 @@ CodexMonitor-main.zip
 # pull-codex.mjs 临时下载目录
 .codex-dl-tmp/
 
+# codex 编译产物 / 拉取的 zip(不进 git)
+codex-build-output/
+codex-windows-x64.zip
+
+# Windows 保留名误生成文件
+nul
+*/nul

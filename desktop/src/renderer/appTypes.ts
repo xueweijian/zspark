@@ -118,6 +118,13 @@ export interface ProviderForm {
 
 export type Panel = null | 'search' | 'skills' | 'plugins' | 'automations' | 'history' | 'shared' | 'files'
 
+// 对齐 codex app-server 的 ThreadStatus(tagged union,camelCase 序列化)。
+// 来源:codex-rs/app-server-protocol/src/protocol/v2/thread.rs:942-963
+export interface ThreadStatus {
+  type: 'idle' | 'active' | 'notLoaded' | 'systemError' | 'interrupted'
+  activeFlags?: Array<'waitingOnApproval' | 'waitingOnUserInput'>
+}
+
 export interface ThreadSummary {
   id: string
   preview?: string
@@ -125,6 +132,10 @@ export interface ThreadSummary {
   updatedAt?: number
   name?: string | null
   cwd?: string
+  // 会话运行态(由 codex thread/status/changed 事件维护)
+  status?: ThreadStatus
+  // 客户端未读标记(后台 thread 收到 agent 完成消息时置位,切换到该 thread 时清除)
+  unread?: boolean
 }
 
 export interface SharedSession {

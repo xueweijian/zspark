@@ -28,4 +28,4 @@ function run(command, args) {
 
 await import(new URL('./build-gmail-mcp.mjs', import.meta.url))
 run('electron-vite', ['build'])
-run('electron-builder', ['--win', 'nsis', ...process.argv.slice(2)])
+run('electron-builder', ['--win', 'dir', ...process.argv.slice(2)])

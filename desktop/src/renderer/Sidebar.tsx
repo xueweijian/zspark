@@ -4,6 +4,7 @@ import {
   IconProject, IconClose, IconShield
 } from './icons'
 import { displayThreadPreview, formatThreadTime } from './appHelpers'
+import { getThreadStatusClass, THREAD_STATUS_LABELS } from './utils/threadStatus'
 import type {
   CollapsedSections,
   WorkspaceInfo,
@@ -441,6 +442,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                                 ) : (
                                   <>
                                     <span className="thread-preview" title={titleText}>{titleText}</span>
+                                    {(() => {
+                                      const statusClass = getThreadStatusClass(threadItem)
+                                      // ready 态不显示状态点,避免视觉噪音。
+                                      if (statusClass === 'ready') return null
+                                      return (
+                                        <span
+                                          className={`thread-status thread-status-${statusClass}`}
+                                          title={THREAD_STATUS_LABELS[statusClass]}
+                                          aria-label={THREAD_STATUS_LABELS[statusClass]}
+                                        />
+                                      )
+                                    })()}
                                     {threadItem.updatedAt && (
                                       <span className="thread-time">
                                         {formatThreadTime(threadItem.updatedAt)}

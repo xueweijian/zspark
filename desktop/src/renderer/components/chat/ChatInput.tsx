@@ -1,11 +1,12 @@
 import React, { useRef } from 'react'
-import { useTranslation } from 'react-i18next'
-import { useComposerStore } from '../../store/composerStore'
-import {
-  IconClose, IconSkills, IconFile, IconShield, IconChevron, IconCheck
-} from '../../icons'
-import { fmtBytes } from '../../appHelpers'
-import { ComposerDropOverlay } from './ComposerDropOverlay'
+  import { useTranslation } from 'react-i18next'
+  import { useComposerStore } from '../../store/composerStore'
+  import {
+    IconClose, IconSkills, IconFile
+  } from '../../icons'
+  import { fmtBytes } from '../../appHelpers'
+  import { ComposerDropOverlay } from './ComposerDropOverlay'
+  import { ComposerMetaBar } from './ComposerMetaBar'
 
 type Props = {
   ready: boolean
@@ -14,11 +15,7 @@ type Props = {
   hasComposerContent: boolean
   filteredSlashCommands: any[]
   filteredSkills: any[]
-  runtimeProvider?: string
   gitBranch?: string
-  tokenUsage: any
-  permissionLevel: 'default' | 'auto' | 'full'
-  showPermissionMenu: boolean
   taRef: React.RefObject<HTMLTextAreaElement>
   onSubmit: () => void
   onStop: () => void
@@ -30,8 +27,6 @@ type Props = {
   onPaste: (e: React.ClipboardEvent<HTMLTextAreaElement>) => void
   onExecuteSlashCommand: (cmd: any) => void
   onExecuteSkillSuggestion: (skill: any) => void
-  onChangePermissionLevel: (level: 'default' | 'auto' | 'full') => void
-  onTogglePermissionMenu: () => void
   getAttachmentPreviewUrl: (a: any) => string
   onFilesDropped?: (files: File[]) => void
 }
@@ -43,11 +38,7 @@ export function ChatInput({
   hasComposerContent,
   filteredSlashCommands,
   filteredSkills,
-  runtimeProvider,
   gitBranch,
-  tokenUsage,
-  permissionLevel,
-  showPermissionMenu,
   taRef,
   onSubmit,
   onStop,
@@ -59,8 +50,6 @@ export function ChatInput({
   onPaste,
   onExecuteSlashCommand,
   onExecuteSkillSuggestion,
-  onChangePermissionLevel,
-  onTogglePermissionMenu,
   getAttachmentPreviewUrl,
   onFilesDropped
 }: Props) {
@@ -226,146 +215,24 @@ export function ChatInput({
         </div>
       </div>
 
-      <div className="chat-status-capsules">
-        <div className="capsules-left">
-          <div className="model-status-container">
-            <div className="status-capsule model-capsule" title={runtimeProvider ?? ''}>
-              <span>{runtimeProvider || '—'}</span>
-              {(() => {
-                const activeTokenUsage = tokenUsage || {
-                  modelContextWindow: 128000,
-                  total: { totalTokens: 0, inputTokens: 0, outputTokens: 0 }
-                }
-                if (activeTokenUsage.modelContextWindow <= 0) return null
-                const totalTokens = activeTokenUsage.total.totalTokens
-                const maxTokens = activeTokenUsage.modelContextWindow
-                const percent = Math.min(100, maxTokens > 0 ? Math.round((totalTokens / maxTokens) * 100) : 0)
-                return (
-                  <>
-                    <div className="model-context-badge">
-                      <span className="context-ring" style={{
-                        background: `conic-gradient(#4f46e5 ${percent * 3.6}deg, #e2e8f0 0deg)`
-                      }}>
-                        <span className="context-ring-inner"></span>
-                      </span>
-                      <span className="context-percent">{percent}%</span>
-                    </div>
+      {/* MetaBar: Plan toggle + Model + Effort + Permission + Context ring */}
+      <ComposerMetaBar />
 
-                    <div className="context-dropdown-menu glass-morphism">
-                      <div className="context-dropdown-header">
-                        <div className="context-title">上下文使用情况</div>
-                        <div className="context-percent-large">{percent}%</div>
-                      </div>
-                      <div className="context-dropdown-divider"></div>
-                      <div className="context-dropdown-body">
-                        <div className="context-info-row">
-                          <span className="context-info-label">已使用</span>
-                          <span className="context-info-value">{new Intl.NumberFormat().format(totalTokens)}</span>
-                        </div>
-                        <div className="context-info-row">
-                          <span className="context-info-label">剩余</span>
-                          <span className="context-info-value">{new Intl.NumberFormat().format(Math.max(0, maxTokens - totalTokens))}</span>
-                        </div>
-                        <div className="context-info-row">
-                          <span className="context-info-label">总窗口大小</span>
-                          <span className="context-info-value">{new Intl.NumberFormat().format(maxTokens)}</span>
-                        </div>
-                        <div className="context-dropdown-divider"></div>
-                        <div className="context-info-row sub-tokens">
-                          <span className="context-info-label">输入 Tokens (Input)</span>
-                          <span className="context-info-value">{new Intl.NumberFormat().format(activeTokenUsage.total.inputTokens)}</span>
-                        </div>
-                        <div className="context-info-row sub-tokens">
-                          <span className="context-info-label">输出 Tokens (Output)</span>
-                          <span className="context-info-value">{new Intl.NumberFormat().format(activeTokenUsage.total.outputTokens)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </>
-                )
-              })()}
-            </div>
-          </div>
-
-          <div className="permission-selector-container">
-            <button
-              className={`status-capsule permission-capsule ${permissionLevel}`}
-              onClick={onTogglePermissionMenu}
-              disabled={!ready || composerBusy}
-              title="点击切换安全与审批权限"
-            >
-              <IconShield />
-              <span>{
-                permissionLevel === 'full' ? t('permission.full') :
-                permissionLevel === 'auto' ? t('permission.auto') : t('permission.default')
-              }</span>
-              <IconChevron />
-            </button>
-
-            {showPermissionMenu && (
-              <div className="permission-dropdown-menu">
-                <button
-                  className={`permission-menu-item ${permissionLevel === 'default' ? 'active' : ''}`}
-                  onClick={() => {
-                    onChangePermissionLevel('default')
-                    onTogglePermissionMenu()
-                  }}
-                >
-                  <span className="dot default"></span>
-                  <div className="menu-text">
-                    <span className="title">{t('permission.default')}</span>
-                    <span className="desc">{t('permission.defaultDesc')}</span>
-                  </div>
-                  {permissionLevel === 'default' && <IconCheck />}
-                </button>
-                <button
-                  className={`permission-menu-item ${permissionLevel === 'auto' ? 'active' : ''}`}
-                  onClick={() => {
-                    onChangePermissionLevel('auto')
-                    onTogglePermissionMenu()
-                  }}
-                >
-                  <span className="dot auto"></span>
-                  <div className="menu-text">
-                    <span className="title">{t('permission.auto')}</span>
-                    <span className="desc">{t('permission.autoDesc')}</span>
-                  </div>
-                  {permissionLevel === 'auto' && <IconCheck />}
-                </button>
-                <button
-                  className={`permission-menu-item ${permissionLevel === 'full' ? 'active' : ''}`}
-                  onClick={() => {
-                    onChangePermissionLevel('full')
-                    onTogglePermissionMenu()
-                  }}
-                >
-                  <span className="dot full"></span>
-                  <div className="menu-text">
-                    <span className="title">{t('permission.full')}</span>
-                    <span className="desc">{t('permission.fullDesc')}</span>
-                  </div>
-                  {permissionLevel === 'full' && <IconCheck />}
-                </button>
-              </div>
-            )}
+      {/* Git branch capsule */}
+      {gitBranch && (
+        <div className="chat-status-capsules" style={{ justifyContent: 'flex-end', marginTop: '4px' }}>
+          <div className="status-capsule git-capsule" title={`Git Branch: ${gitBranch}`}>
+            <svg className="git-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="18" cy="18" r="3" />
+              <circle cx="6" cy="6" r="3" />
+              <circle cx="6" cy="18" r="3" />
+              <path d="M18 15V9a4 4 0 0 0-4-4H9" />
+              <line x1="6" y1="9" x2="6" y2="15" />
+            </svg>
+            <span>{gitBranch}</span>
           </div>
         </div>
-
-        <div className="capsules-right">
-          {gitBranch && (
-            <div className="status-capsule git-capsule" title={`Git Branch: ${gitBranch}`}>
-              <svg className="git-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="18" cy="18" r="3" />
-                <circle cx="6" cy="6" r="3" />
-                <circle cx="6" cy="18" r="3" />
-                <path d="M18 15V9a4 4 0 0 0-4-4H9" />
-                <line x1="6" y1="9" x2="6" y2="15" />
-              </svg>
-              <span>{gitBranch}</span>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   )
 

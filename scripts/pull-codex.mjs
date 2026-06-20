@@ -42,17 +42,19 @@ const sh = (cmd, opts) => execSync(cmd, { encoding: 'utf8', ...opts }).trim()
 const run = (cmd) => execSync(cmd, { stdio: 'inherit' })
 
 // ---- 1. 确定 repo ----
-// 从 git remote 推断 owner/repo,避免硬编码。
-let repo
-try {
-  const url = sh('git remote get-url origin')
-  const m = url.match(/github\.com[/:]([^/]+\/[^/]+?)(\.git)?$/i)
-  if (!m) throw new Error(`无法从 origin 解析 repo: ${url}`)
-  repo = m[1]
-} catch (e) {
-  console.error('无法读取 git remote origin。请确认在 zspark 仓库根目录运行。', e.message)
-  process.exit(1)
+// 编译产物在公开 fork(私有仓 Actions 额度受限)。
+// 优先用 CODEX_BUILD_REPO 环境变量;否则从 git remote 推断。
+// 兜底默认 xueweijian/zspark-1(本项目公开构建 fork)。
+let repo = process.env.CODEX_BUILD_REPO || ''
+if (!repo) {
+  try {
+    const url = sh('git remote get-url origin')
+    const m = url.match(/github\.com[/:]([^/]+\/[^/]+?)(\.git)?$/i)
+    if (m) repo = m[1]
+  } catch { /* ignore */ }
 }
+if (!repo) repo = 'xueweijian/zspark-1'
+console.log(`构建仓库: ${repo}${process.env.CODEX_BUILD_REPO ? '' : ' (默认,可用 CODEX_BUILD_REPO 覆盖)'}`)
 
 // ---- 2. 选择下载方式 ----
 const ghAvailable = (() => {

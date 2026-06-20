@@ -1,5 +1,5 @@
 name: build-codex-windows
-
+# gh: workflow_dispatch
 # 在 GitHub Actions 的标准 windows-latest runner 上编译 codex.exe,
 # 产物供本地拉取使用(见 scripts/pull-codex.mjs)。
 # 与官方 rust-release-windows.yml 不同:不依赖 OpenAI 私有 runner group,

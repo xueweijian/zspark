@@ -1,5 +1,5 @@
 name: build-codex-windows
-# gh: workflow_dispatch
+
 # 在 GitHub Actions 的标准 windows-latest runner 上编译 codex.exe,
 # 产物供本地拉取使用(见 scripts/pull-codex.mjs)。
 # 与官方 rust-release-windows.yml 不同:不依赖 OpenAI 私有 runner group,
@@ -7,6 +7,10 @@ name: build-codex-windows
 #
 # 设计目标:首次编译尽量快(LTO 关闭 + codegen-units 调大),
 # 配合 Swatinem/rust-cache 让后续增量构建在几分钟内完成。
+#
+# 触发说明:同时支持 workflow_dispatch(手动)与 push(改本文件/codex-rs 时)。
+# 之所以同时保留 push:GitHub 对新注册 workflow 的 dispatch trigger 元数据传播
+# 偶尔严重滞后(dispatch 报 422),push 触发则立即生效,可作可靠兜底。
 
 on:
   workflow_dispatch:
@@ -15,6 +19,11 @@ on:
         description: '构建备注(可选,仅用于日志可读性)'
         required: false
         default: ''
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/build-codex-windows.yml'
+      - 'codex-rs/**'
 
 permissions:
   contents: read

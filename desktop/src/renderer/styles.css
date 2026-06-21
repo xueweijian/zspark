@@ -136,11 +136,12 @@ input,textarea,select{font:inherit}
 ::-webkit-scrollbar-thumb:hover{background:#c8ced8}
 
 /* Layout */
-.app{display:grid;grid-template-columns:var(--sidebar-width,260px) minmax(0,1fr) var(--right-panel-width,320px);height:100vh;background:linear-gradient(180deg,#fbfcfd 0%,#f3f5f8 100%);transition:grid-template-columns 220ms ease}
+.app{display:grid;grid-template-columns:var(--sidebar-width,260px) minmax(0,1fr) var(--right-panel-width,320px);height:100vh;background:linear-gradient(180deg,#fbfcfd 0%,#f3f5f8 100%);transition:grid-template-columns 220ms ease;position:relative}
 /* 拖拽中关闭过渡,否则鼠标追不上 */
 .app.is-resizing{transition:none}
-/* 侧边栏拖拽手柄:贴在左栏右边缘 */
-.sidebar-resize-handle{position:relative;width:0;height:100%;cursor:col-resize;z-index:50}
+/* 侧边栏拖拽手柄:绝对定位贴在左栏右边缘(不占 grid 列,避免挤占中栏导致三栏塌双栏)。
+   left 用 --sidebar-width 变量跟随(折叠时该变量为 0,手柄自动贴到窗口左边)。 */
+.sidebar-resize-handle{position:absolute;top:0;bottom:0;left:var(--sidebar-width,260px);width:0;height:100%;cursor:col-resize;z-index:50}
 .sidebar-resize-handle::after{content:"";position:absolute;top:0;bottom:0;left:-3px;width:6px;border-radius:3px;transition:background-color .15s ease}
 .sidebar-resize-handle:hover::after,.sidebar-resize-handle:active::after{background-color:rgba(37,99,235,.4)}
 .bridge-missing{min-height:100vh;display:flex;align-items:center;justify-content:center;background:var(--bg);color:var(--text);padding:24px}
